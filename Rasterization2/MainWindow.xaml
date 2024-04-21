@@ -24,9 +24,13 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="1*"></RowDefinition>
                     <RowDefinition Height="1*"></RowDefinition>
+                    <RowDefinition Height="1*"></RowDefinition>
+                    <RowDefinition Height="1*"></RowDefinition>
                 </Grid.RowDefinitions>
                 <ToggleButton x:Name="buttonLine" Grid.Row="0" Height="50" Click="buttonLine_Click">Line</ToggleButton>
-                <Button x:Name="buttonClear" Grid.Row="1" Height="50" Click="buttonClear_Click">Clear</Button>
+                <ToggleButton x:Name="buttonCircle" Grid.Row="1" Height="50" Click="buttonCircle_Click">Circle</ToggleButton>
+                <ToggleButton x:Name="buttonPolygon" Grid.Row="2" Height="50" Click="buttonPolygon_Click">Polygon</ToggleButton>
+                <Button x:Name="buttonClear" Grid.Row="3" Height="50" Click="buttonClear_Click">Clear</Button>
             </Grid>
         </Grid>
     </Grid>
