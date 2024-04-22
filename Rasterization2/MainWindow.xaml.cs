@@ -24,12 +24,18 @@ namespace Rasterization2
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    /// 
+    ///
+    static class Constants
+    {
+        public static Color backgroundColor = Color.FromArgb(255, 255, 255, 255);
+    }
+
     public abstract class Shape
     {
         public double strokeThickness;
         public Color strokeColor;
         public bool isSelected;
+        public bool Xiaolin_Wu;
 
         public abstract void Draw(WriteableBitmap writeableBitmap);
         public abstract List<Point> GetPoints();
@@ -50,17 +56,32 @@ namespace Rasterization2
         public Point start;
         public Point end;
 
-        public Line(Point start, Point end, double strokeThickness, Color strokeColor)
+        public Line(Point start, Point end, double strokeThickness, Color strokeColor, bool Xiaolin_Wu)
         {
             this.start = start;
             this.end = end;
-            this.strokeThickness = strokeThickness;
             this.strokeColor = strokeColor;
+            this.Xiaolin_Wu = Xiaolin_Wu;
+            if (Xiaolin_Wu)
+            {
+                this.strokeThickness = 1;
+            }
+            else
+            {
+                this.strokeThickness = strokeThickness;
+            }
         }
 
         public override void Draw(WriteableBitmap writeableBitmap)
         {
-            DrawLine(writeableBitmap, start, end);
+            if (Xiaolin_Wu)
+            {
+                XiaolinWu(writeableBitmap, start, end);
+            }
+            else
+            {
+                DrawLine(writeableBitmap, start, end);
+            }
         }
 
         public List<Point> DrawLine(WriteableBitmap? writeableBitmap, Point start, Point end)
@@ -199,7 +220,107 @@ namespace Rasterization2
         }
         public override List<Point> GetPoints()
         {
-            return DrawLine(null, start, end);
+            if (Xiaolin_Wu)
+            {
+                return XiaolinWu(null, start, end);
+            }
+            else
+            {
+                return DrawLine(null, start, end);
+            }
+        }
+
+        private List<Point> XiaolinWu(WriteableBitmap? writeableBitmap, Point start, Point end)
+        {
+            List<Point> points = new List<Point>();
+            Color L = strokeColor;
+            Color B = Constants.backgroundColor; //backgroung-color
+
+
+
+            bool steep = Math.Abs(end.Y - start.Y) > Math.Abs(end.X - start.X);
+            if (steep)
+            {
+                (start.X, start.Y) = (start.Y, start.X);
+                (end.X, end.Y) = (end.Y, end.X);
+            }
+            if (start.X > end.X)
+            {
+                (start.X, end.X) = (end.X, start.X);
+                (start.Y, end.Y) = (end.Y, start.Y);
+            }
+
+            float dx = (float)(end.X - start.X);
+            float dy = (float)(end.Y - start.Y);
+            float m = dy / dx;
+
+            float y = (float)start.Y;
+            
+            int Clamp(int value, int min, int max)
+            {
+                return Math.Max(min, Math.Min(max, value));
+            }
+            
+            if (steep)
+            {
+                for (int x = (int)start.X; x <= end.X; ++x)
+                {
+                    float brightness1 = Math.Max(0, Math.Min(1, (1 - (y % 1))));
+                    float brightness2 = Math.Max(0, Math.Min(1, (y % 1)));
+                    Color c1 = Color.FromArgb(
+                        Clamp((int)(L.A * brightness1 + B.A * brightness2), 0, 255),
+                        Clamp((int)(L.R * brightness1 + B.R * brightness2), 0, 255),
+                        Clamp((int)(L.G * brightness1 + B.G * brightness2), 0, 255),
+                        Clamp((int)(L.B * brightness1 + B.B * brightness2), 0, 255)
+                    );
+                    Color c2 = Color.FromArgb(
+                        Clamp((int)(L.A * brightness2 + B.A * brightness1), 0, 255),
+                        Clamp((int)(L.R * brightness2 + B.R * brightness1), 0, 255),
+                        Clamp((int)(L.G * brightness2 + B.G * brightness1), 0, 255),
+                        Clamp((int)(L.B * brightness2 + B.B * brightness1), 0, 255)
+                    );
+
+                    if (writeableBitmap != null)
+                    {
+                        putPixel(writeableBitmap, (int)Math.Floor(y), x, c1);
+                        putPixel(writeableBitmap, (int)Math.Floor(y) + 1, x, c2);
+                    }
+                    points.Add(new Point((int)Math.Floor(y), x));
+                    points.Add(new Point((int)Math.Floor(y) + 1, x));
+                    y += m;
+                }
+
+            }
+            else
+            {
+                for (int x = (int)start.X; x <= end.X; ++x)
+                {
+                    float brightness1 = Math.Max(0, Math.Min(1, (1 - (y % 1))));
+                    float brightness2 = Math.Max(0, Math.Min(1, (y % 1)));
+                    Color c1 = Color.FromArgb(
+                        Clamp((int)(L.A * brightness1 + B.A * brightness2), 0, 255),
+                        Clamp((int)(L.R * brightness1 + B.R * brightness2), 0, 255),
+                        Clamp((int)(L.G * brightness1 + B.G * brightness2), 0, 255),
+                        Clamp((int)(L.B * brightness1 + B.B * brightness2), 0, 255)
+                    );
+                    Color c2 = Color.FromArgb(
+                        Clamp((int)(L.A * brightness2 + B.A * brightness1), 0, 255),
+                        Clamp((int)(L.R * brightness2 + B.R * brightness1), 0, 255),
+                        Clamp((int)(L.G * brightness2 + B.G * brightness1), 0, 255),
+                        Clamp((int)(L.B * brightness2 + B.B * brightness1), 0, 255)
+                    );
+
+                    if (writeableBitmap != null)
+                    {
+                        putPixel(writeableBitmap, x, (int)Math.Floor(y), c1);
+                        putPixel(writeableBitmap, x, (int)Math.Floor(y) + 1, c2);
+                    }
+                    points.Add(new Point(x, (int)Math.Floor(y)));
+                    points.Add(new Point(x, (int)Math.Floor(y) + 1));
+                    y += m;
+                }
+            }
+            return points;
         }
     }
     public class Circle : Shape
@@ -207,17 +328,25 @@ namespace Rasterization2
         public Point center;
         public double radius;
 
-        public Circle(Point center, double radius, double strokeThickness, Color strokeColor)
+        public Circle(Point center, double radius, double strokeThickness, Color strokeColor, bool Xiaolin_Wu)
         {
             this.center = center;
             this.radius = radius;
             this.strokeThickness = strokeThickness;
             this.strokeColor = strokeColor;
+            this.Xiaolin_Wu = Xiaolin_Wu;
         }
 
         public override void Draw(WriteableBitmap writeableBitmap)
         {
-            DrawCircle(writeableBitmap, center, radius);
+            if (Xiaolin_Wu)
+            {
+                XiaolinWu(writeableBitmap, center, radius);
+            }
+            else
+            {
+                DrawCircle(writeableBitmap, center, radius);
+            }
         }
 
         public List<Point> DrawCircle(WriteableBitmap? writeableBitmap, Point center, double radius)
@@ -292,9 +421,21 @@ namespace Rasterization2
             return points;
         }
 
+        private List<Point> XiaolinWu(WriteableBitmap? writeableBitmap, Point center, double radius)
+        {
+            throw new NotImplementedException();
+        }
+
         public override List<Point> GetPoints()
         {
-            return DrawCircle(null, center, radius);
+            if (Xiaolin_Wu)
+            {
+                return XiaolinWu(null, center, radius);
+            }
+            else
+            {
+                return DrawCircle(null, center, radius);
+            }
         }
     }
     public class Polygons : Shape
@@ -302,12 +443,13 @@ namespace Rasterization2
         public Point start;
         public List<Point> vertives;
 
-        public Polygons(Point start, List<Point> vertives, double strokeThickness, Color strokeColor)
+        public Polygons(Point start, List<Point> vertives, double strokeThickness, Color strokeColor, bool XiaolinWu)
         {
             this.start = start;
             this.vertives = vertives;
             this.strokeThickness = strokeThickness;
             this.strokeColor = strokeColor;
+            this.Xiaolin_Wu = XiaolinWu;
         }
         public override void Draw(WriteableBitmap writeableBitmap)
         {
@@ -328,18 +470,18 @@ namespace Rasterization2
             Line tmp;
             for (int i = 0; i < vertives.Count - 1; i++)
             {
-                tmp = new Line(vertives[i], vertives[i+1], strokeThickness, strokeColor);
+                tmp = new Line(vertives[i], vertives[i+1], strokeThickness, strokeColor, Xiaolin_Wu);
                 if (writeableBitmap != null)
                 {
                     tmp.Draw(writeableBitmap);
                 }
                 List<Point> points2 = tmp.GetPoints();
             }
-/*            tmp = new Line(start, vertives.Last<Point>(), strokeThickness, strokeColor);
+            tmp = new Line(start, vertives.Last<Point>(), strokeThickness, strokeColor, Xiaolin_Wu);
             if (writeableBitmap != null)
             {
                 tmp.Draw(writeableBitmap);
-            }*/
+            }
         }
 
         public override List<Point> GetPoints()
@@ -353,13 +495,13 @@ namespace Rasterization2
             if(Math.Sqrt(Math.Pow(vertives.Last().X - start.X,2) + Math.Pow(vertives.Last().Y - start.Y, 2)) < 10)
             {
                 vertives.Remove(vertives.Last());
-                Line tmp = new Line(vertives.Last(), start, strokeThickness, strokeColor);
+                Line tmp = new Line(vertives.Last(), start, strokeThickness, strokeColor, Xiaolin_Wu);
                 tmp.Draw(writeableBitmap);
                 return true;
             }
             else
             {
-                Line tmp = new Line(vertives[vertives.Count-2], vertives[vertives.Count-1], strokeThickness, strokeColor);
+                Line tmp = new Line(vertives[vertives.Count-2], vertives[vertives.Count-1], strokeThickness, strokeColor, Xiaolin_Wu);
                 tmp.Draw(writeableBitmap);
                 return false;
             }
@@ -377,6 +519,7 @@ namespace Rasterization2
         private Dictionary<int, Shape> shapes;
         private Dictionary<Point, int> points;
         private Color currentColor;
+        private bool XiaolinWuFlag;
 
         public MainWindow()
         {
@@ -386,6 +529,7 @@ namespace Rasterization2
             shapes = new Dictionary<int, Shape>();
             points = new Dictionary<Point, int>();
             currentColor = Color.Black;
+            XiaolinWuFlag = false;
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -426,6 +570,11 @@ namespace Rasterization2
         private void buttonClear_Click(object sender, RoutedEventArgs e)
         {
             paintBackground(bitmap, new byte[] { 255, 255, 255, 255 });
+            uncheckedAllOtherButtons(null);
+            shapes.Clear();
+            points.Clear();
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
         }
 
         private void buttonLine_Click(object sender, RoutedEventArgs e)
@@ -475,7 +624,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Line line = new Line(p, p, 1, currentColor);
+                    Line line = new Line(p, p, 1, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, line);
                     drawState = DrawState.Drawing;
                 }
@@ -505,7 +654,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Circle circle = new Circle(p, 0, 1, currentColor);
+                    Circle circle = new Circle(p, 0, 1, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, circle);
                     drawState = DrawState.Drawing;
                 }
@@ -534,7 +683,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Polygons polygon = new Polygons(p, new List<Point>() { p }, 1, currentColor);
+                    Polygons polygon = new Polygons(p, new List<Point>() { p }, 1, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, polygon);
                     drawState = DrawState.Drawing;
                 }
@@ -573,15 +722,26 @@ namespace Rasterization2
         {
 
         }
-        private void uncheckedAllOtherButtons(object button)
+        private void uncheckedAllOtherButtons(object? button)
         {
             ToggleButton? toggleButton = button as ToggleButton;
+            buttonLine.IsChecked = false;
+            buttonCircle.IsChecked = false;
+            buttonPolygon.IsChecked = false;
             if (toggleButton != null)
             {
-                buttonLine.IsChecked = false;
-                buttonCircle.IsChecked = false;
                 toggleButton.IsChecked = true;
             }
+        }
+
+        private void checkboxXiaoliWu_Checked(object sender, RoutedEventArgs e)
+        {
+            XiaolinWuFlag = true;
+        }
+
+        private void checkboxXiaoliWu_Unchecked(object sender, RoutedEventArgs e)
+        {
+            XiaolinWuFlag = false;
         }
     }
 }

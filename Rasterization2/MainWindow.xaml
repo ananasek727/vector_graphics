@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Rasterization2"
         mc:Ignorable="d"
-        Title="MainWindow" Height="600" Width="800" ContentRendered="window_ContentRendered">
+        Title="MainWindow" Height="800" Width="1000" ContentRendered="window_ContentRendered" ResizeMode="NoResize">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="5*"></ColumnDefinition>
@@ -14,24 +14,39 @@
         <Grid x:Name="imageControlGrid">
             <Image x:Name="imageControl" Stretch="Fill" MouseLeftButtonDown="imageControl_MouseLeftButtonDown" MouseLeftButtonUp="imageControl_MouseLeftButtonUp" MouseMove="imageControl_MouseMove"></Image>
         </Grid>
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="1*"></RowDefinition>
-                <RowDefinition Height="8*"></RowDefinition>
-            </Grid.RowDefinitions>
-            <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Grid.Row="0">Options:</TextBox>
-            <Grid Grid.Row="1">
+        <Border Grid.Column="1" BorderBrush="Aqua" BorderThickness="2, 0, 0, 0">
+            <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="1*"></RowDefinition>
-                    <RowDefinition Height="1*"></RowDefinition>
-                    <RowDefinition Height="1*"></RowDefinition>
-                    <RowDefinition Height="1*"></RowDefinition>
+                    <RowDefinition Height="283*"></RowDefinition>
+                    <RowDefinition Height="283*"></RowDefinition>
                 </Grid.RowDefinitions>
-                <ToggleButton x:Name="buttonLine" Grid.Row="0" Height="50" Click="buttonLine_Click">Line</ToggleButton>
-                <ToggleButton x:Name="buttonCircle" Grid.Row="1" Height="50" Click="buttonCircle_Click">Circle</ToggleButton>
-                <ToggleButton x:Name="buttonPolygon" Grid.Row="2" Height="50" Click="buttonPolygon_Click">Polygon</ToggleButton>
-                <Button x:Name="buttonClear" Grid.Row="3" Height="50" Click="buttonClear_Click">Clear</Button>
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="1*"></RowDefinition>
+                    </Grid.RowDefinitions>
+                    <Label Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22">Options:</Label>
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition  Height="1*"></RowDefinition>
+                        </Grid.RowDefinitions>
+                        <CheckBox x:Name="checkboxXiaoliWu" Grid.Row="0" Checked="checkboxXiaoliWu_Checked" Unchecked="checkboxXiaoliWu_Unchecked" >Xiaolin Wu</CheckBox>
+                    </Grid>
+                </Grid>
+                <Grid Grid.Row="1" Grid.RowSpan="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="1*"></RowDefinition>
+                    </Grid.RowDefinitions>
+                   
+                    <ToggleButton x:Name="buttonLine" Grid.Row="0" Height="50" Click="buttonLine_Click">Line</ToggleButton>
+                    <ToggleButton x:Name="buttonCircle" Grid.Row="1" Height="50" Click="buttonCircle_Click">Circle</ToggleButton>
+                    <ToggleButton x:Name="buttonPolygon" Grid.Row="2" Height="50" Click="buttonPolygon_Click">Polygon</ToggleButton>
+                    <Button x:Name="buttonClear" Grid.Row="3" Height="50" Click="buttonClear_Click">Clear</Button>
+                </Grid>
             </Grid>
-        </Grid>
+        </Border>
     </Grid>
 </Window>
