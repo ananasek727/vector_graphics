@@ -30,6 +30,8 @@ namespace Rasterization2
         public static Color backgroundColor = Color.FromArgb(255, 255, 255, 255);
     }
 
+
+
     public abstract class Shape
     {
         public double strokeThickness;
@@ -49,6 +51,10 @@ namespace Rasterization2
             {
 
             }
+        }
+        public int Clamp(int value, int min, int max)
+        {
+            return Math.Max(min, Math.Min(max, value));
         }
     }
     public class Line : Shape
@@ -234,7 +240,7 @@ namespace Rasterization2
         {
             List<Point> points = new List<Point>();
             Color L = strokeColor;
-            Color B = Constants.backgroundColor; //backgroung-color
+            Color B = Constants.backgroundColor; //background-color
 
 
 
@@ -256,10 +262,7 @@ namespace Rasterization2
 
             float y = (float)start.Y;
             
-            int Clamp(int value, int min, int max)
-            {
-                return Math.Max(min, Math.Min(max, value));
-            }
+
             
             if (steep)
             {
@@ -332,9 +335,16 @@ namespace Rasterization2
         {
             this.center = center;
             this.radius = radius;
-            this.strokeThickness = strokeThickness;
             this.strokeColor = strokeColor;
             this.Xiaolin_Wu = Xiaolin_Wu;
+            if (Xiaolin_Wu)
+            {
+                this.strokeThickness = 1;
+            }
+            else
+            {
+                this.strokeThickness = strokeThickness;
+            }
         }
 
         public override void Draw(WriteableBitmap writeableBitmap)
@@ -423,7 +433,100 @@ namespace Rasterization2
 
         private List<Point> XiaolinWu(WriteableBitmap? writeableBitmap, Point center, double radius)
         {
-            throw new NotImplementedException();
+            List<Point> points = new List<Point>();
+            if (radius == 0)
+            {
+                putPixel(writeableBitmap, (int)center.X, (int)center.Y, strokeColor);
+                return new List<Point>() { center };
+            }
+            Color L = strokeColor;
+            Color B = Constants.backgroundColor; //background-color
+
+            int x = (int)radius;
+            int y = 0;
+            if (writeableBitmap != null)
+            {
+                putPixel(writeableBitmap, (int)center.X + x, (int)center.Y + y, L);
+                putPixel(writeableBitmap, (int)center.X + x, (int)center.Y - y, L);
+                putPixel(writeableBitmap, (int)center.X - x, (int)center.Y + y, L);
+                putPixel(writeableBitmap, (int)center.X - x, (int)center.Y - y, L);
+                putPixel(writeableBitmap, (int)center.X + y, (int)center.Y + x, L);
+                putPixel(writeableBitmap, (int)center.X + y, (int)center.Y - x, L);
+                putPixel(writeableBitmap, (int)center.X - y, (int)center.Y + x, L);
+                putPixel(writeableBitmap, (int)center.X - y, (int)center.Y - x, L);
+            }
+            points.Add(new Point((int)center.X + x, (int)center.Y + y));
+            points.Add(new Point((int)center.X + x, (int)center.Y - y));
+            points.Add(new Point((int)center.X - x, (int)center.Y + y));
+            points.Add(new Point((int)center.X - x, (int)center.Y - y));
+            points.Add(new Point((int)center.X + y, (int)center.Y + x));
+            points.Add(new Point((int)center.X + y, (int)center.Y - x));
+            points.Add(new Point((int)center.X - y, (int)center.Y + x));
+            points.Add(new Point((int)center.X - y, (int)center.Y - x));
+
+            float D(int R, int y)
+            {
+                return (float)Math.Min(1.0f, Math.Ceiling(Math.Sqrt(radius * radius - y * y)) - Math.Sqrt(radius * radius - y * y));
+            }
+            while (x>y)
+            {
+                ++y;
+                x = (int)Math.Ceiling(Math.Sqrt(radius * radius - y * y));
+                float brightness1 = Math.Max(0, Math.Min(1, 1-D((int)radius, y)));
+                float brightness2 = Math.Max(0, Math.Min(1, D((int)radius, y)));
+                Color c2 = Color.FromArgb(
+                    Clamp((int)(L.A * brightness1 + B.A * brightness2), 0, 255),
+                    Clamp((int)(L.R * brightness1 + B.R * brightness2), 0, 255),
+                    Clamp((int)(L.G * brightness1 + B.G * brightness2), 0, 255),
+                    Clamp((int)(L.B * brightness1 + B.B * brightness2), 0, 255)
+                );
+                Color c1 = Color.FromArgb(
+                    Clamp((int)(L.A * brightness2 + B.A * brightness1), 0, 255),
+                    Clamp((int)(L.R * brightness2 + B.R * brightness1), 0, 255),
+                    Clamp((int)(L.G * brightness2 + B.G * brightness1), 0, 255),
+                    Clamp((int)(L.B * brightness2 + B.B * brightness1), 0, 255)
+                );
+
+                if (writeableBitmap != null)
+                {
+                    putPixel(writeableBitmap, (int)center.X + x, (int)center.Y + y, c2);
+                    putPixel(writeableBitmap, (int)center.X + y, (int)center.Y + x, c2);
+                    putPixel(writeableBitmap, (int)center.X - x, (int)center.Y + y, c2);
+                    putPixel(writeableBitmap, (int)center.X - x, (int)center.Y - y, c2);
+                    putPixel(writeableBitmap, (int)center.X + y, (int)center.Y - x, c2);
+                    putPixel(writeableBitmap, (int)center.X - y, (int)center.Y + x, c2);
+                    putPixel(writeableBitmap, (int)center.X - y, (int)center.Y - x, c2);
+                    putPixel(writeableBitmap, (int)center.X + x, (int)center.Y - y, c2);
+
+                    putPixel(writeableBitmap, (int)center.X + x - 1, (int)center.Y + y, c1);
+                    putPixel(writeableBitmap, (int)center.X + y, (int)center.Y + x - 1, c1);
+                    putPixel(writeableBitmap, (int)center.X - x + 1, (int)center.Y + y, c1);
+                    putPixel(writeableBitmap, (int)center.X - x + 1, (int)center.Y - y, c1);
+                    putPixel(writeableBitmap, (int)center.X + y, (int)center.Y - x + 1, c1);
+                    putPixel(writeableBitmap, (int)center.X - y, (int)center.Y + x - 1, c1);
+                    putPixel(writeableBitmap, (int)center.X - y, (int)center.Y - x + 1, c1);
+                    putPixel(writeableBitmap, (int)center.X + x - 1, (int)center.Y - y, c1);
+                }
+                points.Add(new Point((int)center.X + x, (int)center.Y + y));
+                points.Add(new Point((int)center.X + y, (int)center.Y + x));
+                points.Add(new Point((int)center.X - x, (int)center.Y + y));
+                points.Add(new Point((int)center.X - x, (int)center.Y - y));
+                points.Add(new Point((int)center.X + y, (int)center.Y - x));
+                points.Add(new Point((int)center.X - y, (int)center.Y + x));
+                points.Add(new Point((int)center.X - y, (int)center.Y - x));
+                points.Add(new Point((int)center.X + x, (int)center.Y - y));
+
+                points.Add(new Point((int)center.X + x - 1, (int)center.Y + y));
+                points.Add(new Point((int)center.X + y, (int)center.Y + x - 1));
+                points.Add(new Point((int)center.X - x + 1, (int)center.Y + y));
+                points.Add(new Point((int)center.X - x + 1, (int)center.Y - y));
+                points.Add(new Point((int)center.X + y, (int)center.Y - x + 1));
+                points.Add(new Point((int)center.X - y, (int)center.Y + x - 1));
+                points.Add(new Point((int)center.X - y, (int)center.Y - x + 1));
+                points.Add(new Point((int)center.X + x - 1, (int)center.Y - y));
+
+            }
+            return points;
         }
 
         public override List<Point> GetPoints()
@@ -567,7 +670,7 @@ namespace Rasterization2
             }*/
         }
 
-        private void buttonClear_Click(object sender, RoutedEventArgs e)
+                private void buttonClear_Click(object sender, RoutedEventArgs e)
         {
             paintBackground(bitmap, new byte[] { 255, 255, 255, 255 });
             uncheckedAllOtherButtons(null);
