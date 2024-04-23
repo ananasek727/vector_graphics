@@ -94,8 +94,11 @@ namespace Rasterization2
         {
             if(start.X == end.X && start.Y == end.Y)
             {
-                putPixel(writeableBitmap, (int)start.X, (int)start.Y, strokeColor);
-                return new List<Point>() { start };
+                if (writeableBitmap != null)
+                {
+                    putPixel(writeableBitmap, (int)start.X, (int)start.Y, strokeColor);
+                    return new List<Point>() { start };
+                }
             }
             
             List<Point> points = new List<Point>();
@@ -219,6 +222,43 @@ namespace Rasterization2
             else
             {
                 throw new Exception("Invalid line coordinates");
+            }
+            if (strokeThickness > 1)
+            {
+                dx = (int)(end.X - start.X);
+                dy = (int)(end.Y - start.Y);
+                if (Math.Abs(dx) <= Math.Abs(dy))
+                {
+                    new List<Point>(points).ForEach(point =>
+                    {
+                        for (int i = 1; i < strokeThickness / 2; i++)
+                        {
+                            if (writeableBitmap != null)
+                            {
+                                putPixel(writeableBitmap, Clamp((int)point.X + i, 0, writeableBitmap.PixelWidth), (int)point.Y, strokeColor);
+                                putPixel(writeableBitmap, Clamp((int)point.X - i, 0, writeableBitmap.PixelWidth), (int)point.Y, strokeColor);
+                            }
+                            points.Add(new Point((int)point.X + i, (int)point.Y));
+                            points.Add(new Point((int)point.X - i, (int)point.Y));
+                        }
+                    });
+                }
+                else
+                {
+                    new List<Point>(points).ForEach(point =>
+                    {
+                        for (int i = 1; i < strokeThickness / 2; i++)
+                        {
+                            if (writeableBitmap != null)
+                            {
+                                putPixel(writeableBitmap, (int)point.X, Clamp((int)point.Y + i, 0, writeableBitmap.PixelHeight), strokeColor);
+                                putPixel(writeableBitmap, (int)point.X, Clamp((int)point.Y - i, 0, writeableBitmap.PixelHeight), strokeColor);
+                            }
+                            points.Add(new Point((int)point.X, (int)point.Y + i));
+                            points.Add(new Point((int)point.X, (int)point.Y - i));
+                        }
+                    });
+                }
             }
 
             return points;
@@ -618,6 +658,7 @@ namespace Rasterization2
         private Dictionary<Point, int> points;
         private Color currentColor;
         private bool XiaolinWuFlag;
+        private int thickness;
 
         public MainWindow()
         {
@@ -628,6 +669,7 @@ namespace Rasterization2
             points = new Dictionary<Point, int>();
             currentColor = Color.Black;
             XiaolinWuFlag = false;
+            thickness = 1;
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -722,7 +764,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Line line = new Line(p, p, 1, currentColor, XiaolinWuFlag);
+                    Line line = new Line(p, p, thickness, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, line);
                     drawState = DrawState.Drawing;
                 }
@@ -752,7 +794,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Circle circle = new Circle(p, 0, 1, currentColor, XiaolinWuFlag);
+                    Circle circle = new Circle(p, 0, thickness, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, circle);
                     drawState = DrawState.Drawing;
                 }
@@ -781,7 +823,7 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Polygons polygon = new Polygons(p, new List<Point>() { p }, 1, currentColor, XiaolinWuFlag);
+                    Polygons polygon = new Polygons(p, new List<Point>() { p }, thickness, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, polygon);
                     drawState = DrawState.Drawing;
                 }
@@ -840,6 +882,12 @@ namespace Rasterization2
         private void checkboxXiaoliWu_Unchecked(object sender, RoutedEventArgs e)
         {
             XiaolinWuFlag = false;
+        }
+        private void sliderThickness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            thickness = (int)e.NewValue;
+            // Update the label's content with the new value of the slider
+            //valuelabelThickness.Content = ((int)e.NewValue).ToString();
         }
     }
 }

@@ -29,8 +29,15 @@
                     <Grid Grid.Row="1">
                         <Grid.RowDefinitions>
                             <RowDefinition  Height="1*"></RowDefinition>
+                            <RowDefinition Height="1*"></RowDefinition>
                         </Grid.RowDefinitions>
                         <CheckBox x:Name="checkboxXiaoliWu" Grid.Row="0" Checked="checkboxXiaoliWu_Checked" Unchecked="checkboxXiaoliWu_Unchecked" >Xiaolin Wu</CheckBox>
+                        <Grid Grid.Row="1">
+                            <Slider x:Name="sliderThickness" Minimum="1" Maximum="9" TickFrequency="2" 
+                                ValueChanged="sliderThickness_ValueChanged" VerticalAlignment="Center" IsSnapToTickEnabled="True" />
+                            <Label x:Name="valuelabelThickness" Content="{Binding ElementName=sliderThickness, Path=Value}" 
+               HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,20" />
+                        </Grid>
                     </Grid>
                 </Grid>
                 <Grid Grid.Row="1" Grid.RowSpan="2">
