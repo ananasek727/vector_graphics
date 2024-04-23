@@ -367,8 +367,7 @@ namespace Rasterization2
                 putPixel(writeableBitmap, (int)center.X, (int)center.Y, strokeColor);
                 return new List<Point>() { center };
             }
-            int dE = 3;
-            int dSE = (int)(5 - 2 * radius);
+
             int d = (int)(1 - radius);
             int x = 0;
             int y = (int)radius;
@@ -396,15 +395,11 @@ namespace Rasterization2
             {
                 if (d < 0) //move to E
                 {
-                    d += dE;
-                    dE += 2;
-                    dSE += 2;
+                    d += 2 * x + 3;
                 }
                 else //move to SE
                 {
-                    d += dSE;
-                    dE += 2;
-                    dSE += 4;
+                    d += 2 * x - 2 * y + 5;
                     --y;
                 }
                 ++x;
