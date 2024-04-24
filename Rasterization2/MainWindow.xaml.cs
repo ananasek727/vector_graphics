@@ -45,7 +45,11 @@ namespace Rasterization2
         {
             try
             {
-                writeableBitmap.WritePixels(new Int32Rect(x, y, 1, 1), new byte[] { color.R, color.G, color.B, color.A }, 4, 0);
+                if(x < 0 || x >= writeableBitmap.PixelWidth || y < 0 || y >= writeableBitmap.PixelHeight)
+                {
+                    return;
+                }
+                writeableBitmap.WritePixels(new Int32Rect(x, y, 1, 1), new byte[] {color.B, color.G, color.R, color.A}, 4, 0);
             }
             catch (Exception e)
             {
@@ -652,6 +656,10 @@ namespace Rasterization2
         private WriteableBitmap bitmap;
         private enum DrawMode { Line, Circle, Rectangle, Polygon, None };
         private enum DrawState { Start, Drawing, End };
+        private enum EditorialMode { Move, Delete, Edit, None };
+        private enum EditState { Start, Moving, Deleting, Editing, End };
+        private EditorialMode editorialMode;
+        private EditState editState;
         private DrawMode drawMode;
         private DrawState drawState;
         private Dictionary<int, Shape> shapes;
@@ -659,7 +667,7 @@ namespace Rasterization2
         private Color currentColor;
         private bool XiaolinWuFlag;
         private int thickness;
-
+        private int index;
         public MainWindow()
         {
             InitializeComponent();
@@ -670,6 +678,9 @@ namespace Rasterization2
             currentColor = Color.Black;
             XiaolinWuFlag = false;
             thickness = 1;
+            editorialMode = EditorialMode.None;
+            editState = EditState.Start;
+            index = 0;
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -757,6 +768,44 @@ namespace Rasterization2
             }
         }
 
+        private void buttonEdit_Click(object sender, RoutedEventArgs e)
+        {
+            uncheckedAllOtherButtons(sender);
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+        }
+
+        private void buttonMove_Click(object sender, RoutedEventArgs e)
+        {
+            uncheckedAllOtherButtons(sender);
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+        }
+
+        private void buttonDelete_Click(object sender, RoutedEventArgs e)
+        {
+            uncheckedAllOtherButtons(sender);
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+            editorialMode = EditorialMode.Delete;
+            editState = EditState.Start;
+        }
+
+        private void uncheckedAllOtherButtons(object? button)
+        {
+            ToggleButton? toggleButton = button as ToggleButton;
+            buttonLine.IsChecked = false;
+            buttonCircle.IsChecked = false;
+            buttonPolygon.IsChecked = false;
+            buttonEdit.IsChecked = false;
+            buttonMove.IsChecked = false;
+            buttonDelete.IsChecked = false;
+            if (toggleButton != null)
+            {
+                toggleButton.IsChecked = true;
+            }
+        }
+
         private void imageControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (drawMode == DrawMode.Line)
@@ -765,24 +814,25 @@ namespace Rasterization2
                 {
                     Point p = e.GetPosition(imageControl);
                     Line line = new Line(p, p, thickness, currentColor, XiaolinWuFlag);
-                    shapes.Add(shapes.Count, line);
+                    shapes.Add(index, line);
                     drawState = DrawState.Drawing;
+                    ++index;
                 }
                 else if (drawState == DrawState.Drawing)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Line line = (Line)shapes[shapes.Count - 1];
+                    Line line = (Line)shapes[index - 1];
                     line.end = p;
-                    shapes[shapes.Count - 1] = line;
+                    shapes[index - 1] = line;
 
                     List<Point> points = line.GetPoints();
                     foreach (Point point in points)
                     {
-                        this.points.TryAdd(point, shapes.Count - 1);
+                        this.points.TryAdd(point, index - 1);
                     }
                     line.Draw(bitmap);
                     drawState = DrawState.Start;
-
+                    
                 }
                 else if (drawState == DrawState.End)
                 {
@@ -795,20 +845,21 @@ namespace Rasterization2
                 {
                     Point p = e.GetPosition(imageControl);
                     Circle circle = new Circle(p, 0, thickness, currentColor, XiaolinWuFlag);
-                    shapes.Add(shapes.Count, circle);
+                    shapes.Add(index, circle);
                     drawState = DrawState.Drawing;
+                    index++;
                 }
                 else if (drawState == DrawState.Drawing)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Circle circle = (Circle)shapes[shapes.Count - 1];
+                    Circle circle = (Circle)shapes[index - 1];
                     circle.radius = Math.Sqrt(Math.Pow(circle.center.X - p.X, 2) + Math.Pow(circle.center.Y - p.Y, 2));
-                    shapes[shapes.Count - 1] = circle;
+                    shapes[index - 1] = circle;
 
                     List<Point> points = circle.GetPoints();
                     foreach (Point point in points)
                     {
-                        this.points.TryAdd(point, shapes.Count - 1);
+                        this.points.TryAdd(point, index - 1);
                     }
                     circle.Draw(bitmap);
                     drawState = DrawState.Start;
@@ -826,30 +877,67 @@ namespace Rasterization2
                     Polygons polygon = new Polygons(p, new List<Point>() { p }, thickness, currentColor, XiaolinWuFlag);
                     shapes.Add(shapes.Count, polygon);
                     drawState = DrawState.Drawing;
+                    index++;
                 }
                 else if (drawState == DrawState.Drawing)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Polygons polygon = (Polygons)shapes[shapes.Count - 1];
+                    Polygons polygon = (Polygons)shapes[index - 1];
                     polygon.vertives.Add(p);
-                    shapes[shapes.Count - 1] = polygon;
+                    shapes[index - 1] = polygon;
 
                     List<Point> points = polygon.GetPoints();
                     foreach (Point point in points)
                     {
-                        this.points.TryAdd(point, shapes.Count - 1);
+                        this.points.TryAdd(point, index - 1);
                     }
                     bool isClosed = polygon.DrawPolygonLineByLine(bitmap);
                     if (isClosed)
                     {
                         drawState = DrawState.Start;
                     }
+                    
                 }
                 else if (drawState == DrawState.End)
                 {
                     drawState = DrawState.Start;
                 }
             }
+            else if (drawMode == DrawMode.None)
+            {
+/*                Point p = e.GetPosition(imageControl);
+                if (points.ContainsKey(p))
+                {
+                    int shapeIndex = points[p];
+                    Shape shape = shapes[shapeIndex];
+                }*/
+                if (editorialMode == EditorialMode.Delete)
+                {
+                    Point p = e.GetPosition(imageControl);
+                    if (points.ContainsKey(p))
+                    {
+                        int shapeIndex = this.points[p];
+                        Shape shape = shapes[shapeIndex];
+                        shapes.Remove(shapeIndex);
+                        List<Point> points = shape.GetPoints();
+                        foreach (Point point in points)
+                        {
+                            this.points.Remove(point);
+                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                            {
+                                return;
+                            }
+                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                        }
+                        this.points.Remove(p);
+                        foreach (Shape s in shapes.Values)
+                        {
+                            s.Draw(bitmap);
+                        }
+                    }
+                }
+            }
+            
         }
         
 
@@ -861,17 +949,6 @@ namespace Rasterization2
         private void imageControl_MouseMove(object sender, MouseEventArgs e)
         {
 
-        }
-        private void uncheckedAllOtherButtons(object? button)
-        {
-            ToggleButton? toggleButton = button as ToggleButton;
-            buttonLine.IsChecked = false;
-            buttonCircle.IsChecked = false;
-            buttonPolygon.IsChecked = false;
-            if (toggleButton != null)
-            {
-                toggleButton.IsChecked = true;
-            }
         }
 
         private void checkboxXiaoliWu_Checked(object sender, RoutedEventArgs e)
@@ -889,5 +966,14 @@ namespace Rasterization2
             // Update the label's content with the new value of the slider
             //valuelabelThickness.Content = ((int)e.NewValue).ToString();
         }
+
+        private void colorpickerStroke_SelectedColorChanged(object sender, RoutedPropertyChangedEventArgs<System.Windows.Media.Color?> e)
+        {
+            if(colorpickerStroke.SelectedColor.HasValue)
+                currentColor = Color.FromArgb(colorpickerStroke.SelectedColor.Value.A, colorpickerStroke.SelectedColor.Value.R, colorpickerStroke.SelectedColor.Value.G, colorpickerStroke.SelectedColor.Value.B);
+              
+        }
+
+
     }
 }
