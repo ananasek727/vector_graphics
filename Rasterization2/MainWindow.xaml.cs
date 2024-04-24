@@ -18,6 +18,7 @@ using Color = System.Drawing.Color;
 using System.Collections;
 using System.Windows.Controls.Primitives;
 using System.Diagnostics.Eventing.Reader;
+using System.Windows.Ink;
 
 namespace Rasterization2
 {
@@ -598,7 +599,7 @@ namespace Rasterization2
             DrawPolygon(writeableBitmap, start, vertives);
         }
 
-        private void DrawPolygon(WriteableBitmap? writeableBitmap, Point start, List<Point> vertives)
+        private List<Point> DrawPolygon(WriteableBitmap? writeableBitmap, Point start, List<Point> vertives)
         {
             List<Point> points = new List<Point>();
             if (vertives.Count == 1)
@@ -607,7 +608,8 @@ namespace Rasterization2
                 {
                     putPixel(writeableBitmap, (int)start.X, (int)start.Y, strokeColor);
                 }
-                return;
+                points.Add(new Point((int)start.X, (int)start.Y));
+                return points;
             }
             Line tmp;
             for (int i = 0; i < vertives.Count - 1; i++)
@@ -617,18 +619,26 @@ namespace Rasterization2
                 {
                     tmp.Draw(writeableBitmap);
                 }
-                List<Point> points2 = tmp.GetPoints();
+                foreach (Point point in tmp.GetPoints())
+                {
+                    points.Add(point);
+                }
             }
             tmp = new Line(start, vertives.Last<Point>(), strokeThickness, strokeColor, Xiaolin_Wu);
             if (writeableBitmap != null)
             {
                 tmp.Draw(writeableBitmap);
             }
+            foreach (Point point in tmp.GetPoints())
+            {
+                points.Add(point);
+            }
+            return points;
         }
 
         public override List<Point> GetPoints()
         {
-            return vertives;
+            return DrawPolygon(null, start, vertives);
         }
 
         //return true if the polygon is closed
@@ -716,6 +726,11 @@ namespace Rasterization2
                     bitmap.WritePixels(new Int32Rect(j, i, 1, 1), color, 4, 0);
                 }
             }*/
+        }
+
+        private static List<Point> clickCircle(Point center, double radius)
+        {
+            return new Circle(center, radius, 1, Color.Black, false).GetPoints();
         }
 
                 private void buttonClear_Click(object sender, RoutedEventArgs e)
@@ -875,7 +890,7 @@ namespace Rasterization2
                 {
                     Point p = e.GetPosition(imageControl);
                     Polygons polygon = new Polygons(p, new List<Point>() { p }, thickness, currentColor, XiaolinWuFlag);
-                    shapes.Add(shapes.Count, polygon);
+                    shapes.Add(index, polygon);
                     drawState = DrawState.Drawing;
                     index++;
                 }
@@ -895,6 +910,10 @@ namespace Rasterization2
                     if (isClosed)
                     {
                         drawState = DrawState.Start;
+                        foreach (Point point in polygon.GetPoints())
+                        {
+                            this.points.TryAdd(point, index - 1);
+                        }
                     }
                     
                 }
@@ -914,25 +933,31 @@ namespace Rasterization2
                 if (editorialMode == EditorialMode.Delete)
                 {
                     Point p = e.GetPosition(imageControl);
-                    if (points.ContainsKey(p))
+                    List<Point> clickPoints;
+                    clickPoints = clickCircle(p, 10);
+                    foreach (Point point1 in clickPoints)
                     {
-                        int shapeIndex = this.points[p];
-                        Shape shape = shapes[shapeIndex];
-                        shapes.Remove(shapeIndex);
-                        List<Point> points = shape.GetPoints();
-                        foreach (Point point in points)
+                        if (points.ContainsKey(point1))
                         {
-                            this.points.Remove(point);
-                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                            int shapeIndex = this.points[point1];
+                            Shape shape = shapes[shapeIndex];
+                            shapes.Remove(shapeIndex);
+                            List<Point> points = shape.GetPoints();
+                            foreach (Point point in points)
                             {
-                                return;
+                                this.points.Remove(point);
+                                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                {
+                                    continue;
+                                }
+                                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
                             }
-                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
-                        }
-                        this.points.Remove(p);
-                        foreach (Shape s in shapes.Values)
-                        {
-                            s.Draw(bitmap);
+                            this.points.Remove(point1);
+                            foreach (Shape s in shapes.Values)
+                            {
+                                s.Draw(bitmap);
+                            }
+                            break;
                         }
                     }
                 }
