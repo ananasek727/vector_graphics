@@ -1069,6 +1069,16 @@ namespace Rasterization2
                                             }
                                         }
                                     }
+                                    if (shape is Circle)
+                                {
+                                        Circle circle = (Circle)shape;
+                                        Circle circle3 = new Circle(new Point(circle.center.X + circle.radius,      circle.center.Y), 10, 1, Color.Blue, false);
+                                        circle3.Draw(bitmap);
+                                        foreach (Point point in circle3.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+                                    }
                                     editState = EditState.Editing;
                                     lastMousePosition = e.GetPosition(imageControl);
                                     selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
@@ -1211,6 +1221,16 @@ namespace Rasterization2
 
                             polygon.vertives[polygon.vertives.IndexOf(point)] = currentMousePosition;
                         }
+                    }
+                }
+                if (selectedShape is Circle)
+                {
+                    Circle circle = (Circle)selectedShape;
+                    if ((currentMousePosition - new Point(circle.center.X + circle.radius, circle.center.Y)).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        circle.radius = (currentMousePosition - circle.center).Length;
                     }
                 }
                 lastMousePosition = currentMousePosition;
