@@ -1068,6 +1068,16 @@ namespace Rasterization2
                                                 circlePointAroundTheVertex.Add(point2);
                                             }
                                         }
+                                        //put circle in the middle of edges of the polygon
+                                        for (int i = 0; i < polygon.vertives.Count - 1; i++)
+                                    {
+                                            Circle circle2 = new Circle(new Point((polygon.vertives[i].X + polygon.vertives[i + 1].X) / 2, (polygon.vertives[i].Y + polygon.vertives[i + 1].Y) / 2), 10, 1, Color.Blue, false);
+                                            circle2.Draw(bitmap);
+                                            foreach (Point point in circle2.GetPoints())
+                                        {
+                                                circlePointAroundTheVertex.Add(point);
+                                            }
+                                        }
                                     }
                                     if (shape is Circle)
                                 {
@@ -1220,6 +1230,17 @@ namespace Rasterization2
                             isCirclePointAroundTheVertex = true;
 
                             polygon.vertives[polygon.vertives.IndexOf(point)] = currentMousePosition;
+                        }
+                    }
+                    //move circle to the middle of edges of the polygon
+                    for (int i = 0; i < polygon.vertives.Count - 1; i++)
+                    {
+                        if ((currentMousePosition - new Point((polygon.vertives[i].X + polygon.vertives[i + 1].X) / 2, (polygon.vertives[i].Y + polygon.vertives[i + 1].Y) / 2)).Length < 15)
+                        {
+                            Vector displacement = currentMousePosition - lastMousePosition;
+                            isCirclePointAroundTheVertex = true;
+                            polygon.vertives[i] = polygon.vertives[i] + displacement;
+                            polygon.vertives[i + 1] = polygon.vertives[i+1] + displacement;
                         }
                     }
                 }
