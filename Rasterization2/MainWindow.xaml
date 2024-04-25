@@ -46,7 +46,7 @@
                                     <ColumnDefinition></ColumnDefinition>
                                     <ColumnDefinition></ColumnDefinition>
                                 </Grid.ColumnDefinitions>
-                                <ToggleButton x:Name="buttonEdit" Grid.Column="0" Width="50" Click="buttonEdit_Click" >Edit</ToggleButton>
+                                <ToggleButton x:Name="buttonEdit" Grid.Column="0" Width="50" Click="buttonEdit_Click" Unchecked="buttonEdit_Unchecked" Checked="buttonEdit_Checked" >Edit</ToggleButton>
                                 <ToggleButton x:Name="buttonMove" Grid.Column="1" Width="50" Click="buttonMove_Click" >Move</ToggleButton>
                                 <ToggleButton x:Name="buttonDelete" Grid.Column="2" Width="50" Click="buttonDelete_Click" >Delete</ToggleButton>
 

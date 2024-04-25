@@ -19,6 +19,7 @@ using System.Collections;
 using System.Windows.Controls.Primitives;
 using System.Diagnostics.Eventing.Reader;
 using System.Windows.Ink;
+using System.Data;
 
 namespace Rasterization2
 {
@@ -42,6 +43,7 @@ namespace Rasterization2
 
         public abstract void Draw(WriteableBitmap writeableBitmap);
         public abstract List<Point> GetPoints();
+        public abstract void Move(Vector vector);
         public void putPixel(WriteableBitmap writeableBitmap, int x, int y, Color color)
         {
             try
@@ -370,6 +372,12 @@ namespace Rasterization2
             }
             return points;
         }
+
+        public override void Move(Vector vector)
+        {
+            start = new Point(start.X + vector.X, start.Y + vector.Y);
+            end = new Point(end.X + vector.X, end.Y + vector.Y);
+        }
     }
     public class Circle : Shape
     {
@@ -580,6 +588,11 @@ namespace Rasterization2
                 return DrawCircle(null, center, radius);
             }
         }
+
+        public override void Move(Vector vector)
+        {
+            center = new Point(center.X + vector.X, center.Y + vector.Y);
+        }
     }
     public class Polygons : Shape
     {
@@ -659,6 +672,15 @@ namespace Rasterization2
             }
 
         }
+
+        public override void Move(Vector vector)
+        {
+            start = new Point(start.X + vector.X, start.Y + vector.Y);
+            for (int i = 0; i < vertives.Count; i++)
+            {
+                vertives[i] = new Point(vertives[i].X + vector.X, vertives[i].Y + vector.Y);
+            }
+        }
     }
 
     public partial class MainWindow : Window
@@ -678,6 +700,11 @@ namespace Rasterization2
         private bool XiaolinWuFlag;
         private int thickness;
         private int index;
+        private int selectedShapeIndex;
+        private List<Point> selectedShapeOldPoints;
+        private Point lastMousePosition;
+        private List<Point> circlePointAroundTheVertex;
+        private bool isCirclePointAroundTheVertex;
         public MainWindow()
         {
             InitializeComponent();
@@ -691,6 +718,11 @@ namespace Rasterization2
             editorialMode = EditorialMode.None;
             editState = EditState.Start;
             index = 0;
+            selectedShapeIndex = -1;
+            selectedShapeOldPoints = new List<Point>();
+            circlePointAroundTheVertex = new List<Point>();
+            isCirclePointAroundTheVertex = false;
+            
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -785,9 +817,9 @@ namespace Rasterization2
 
         private void buttonEdit_Click(object sender, RoutedEventArgs e)
         {
-            uncheckedAllOtherButtons(sender);
-            drawMode = DrawMode.None;
-            drawState = DrawState.Start;
+
+
+
         }
 
         private void buttonMove_Click(object sender, RoutedEventArgs e)
@@ -795,6 +827,8 @@ namespace Rasterization2
             uncheckedAllOtherButtons(sender);
             drawMode = DrawMode.None;
             drawState = DrawState.Start;
+            editorialMode = EditorialMode.Move;
+            editState = EditState.Start;
         }
 
         private void buttonDelete_Click(object sender, RoutedEventArgs e)
@@ -924,12 +958,6 @@ namespace Rasterization2
             }
             else if (drawMode == DrawMode.None)
             {
-/*                Point p = e.GetPosition(imageControl);
-                if (points.ContainsKey(p))
-                {
-                    int shapeIndex = points[p];
-                    Shape shape = shapes[shapeIndex];
-                }*/
                 if (editorialMode == EditorialMode.Delete)
                 {
                     Point p = e.GetPosition(imageControl);
@@ -961,6 +989,96 @@ namespace Rasterization2
                         }
                     }
                 }
+                else if(editorialMode == EditorialMode.Move)
+                {
+                    if (editState == EditState.Start)
+                    {
+                        Point p = e.GetPosition(imageControl);
+                        List<Point> clickPoints;
+                        clickPoints = clickCircle(p, 10);
+                        foreach (Point point1 in clickPoints)
+                        {
+                            if (points.ContainsKey(point1))
+                            {
+                                selectedShapeIndex = this.points[point1];
+                                editState = EditState.Moving;
+                                List<Point> points = shapes[selectedShapeIndex].GetPoints();
+                                foreach (Point point in points)
+                                {
+                                    this.points.Remove(point);
+                                    if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                    {
+                                        continue;
+                                    }
+                                    bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 0, 0, 255, 255 }, 4, 0);
+                                }
+
+                                editState = EditState.Moving;
+                                lastMousePosition = e.GetPosition(imageControl);
+                                selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
+                                break;
+                            }
+                        }
+
+                    }
+                }
+                else if(editorialMode == EditorialMode.Edit)
+                {
+                    if (editState == EditState.Start)
+                    {
+                            Point p = e.GetPosition(imageControl);
+                            List<Point> clickPoints;
+                            clickPoints = clickCircle(p, 10);
+                            foreach (Point point1 in clickPoints)
+                            {
+                                if (points.ContainsKey(point1))
+                                {
+                                    selectedShapeIndex = this.points[point1];
+                                    Shape shape = shapes[selectedShapeIndex];
+                                    if (shape is Line)
+                                    {
+                                        Circle circle = new Circle(((Line)shape).start, 10, 1, Color.Blue, false);
+                                        circle.Draw(bitmap);
+                                        foreach(Point point in circle.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+                                        Circle circle2 = new Circle(((Line)shape).end, 10, 1, Color.Blue, false);
+                                        circle2.Draw(bitmap);
+                                        foreach (Point point in circle2.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+                                    }
+                                    if (shape is Polygons)
+                                    {
+                                        Polygons polygon = (Polygons)shape;
+                                        Circle circle = new Circle(polygon.start, 10, 1, Color.Blue, false);
+                                        circle.Draw(bitmap);
+                                        foreach (Point point in circle.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+                                        foreach (Point point in polygon.vertives)
+                                        {
+                                            Circle circle2 = new Circle(point, 10, 1, Color.Blue, false);
+                                            circle2.Draw(bitmap);
+                                            foreach (Point point2 in circle2.GetPoints())
+                                            {
+                                                circlePointAroundTheVertex.Add(point2);
+                                            }
+                                        }
+                                    }
+                                    editState = EditState.Editing;
+                                    lastMousePosition = e.GetPosition(imageControl);
+                                    selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
+
+                                break;
+                                }
+                            }
+                    }
+
+                }
             }
             
         }
@@ -968,12 +1086,135 @@ namespace Rasterization2
 
         private void imageControl_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (editorialMode == EditorialMode.Move)
+            {
+                if (editState == EditState.Moving)
+                {
+                    editState = EditState.Start;
+                    foreach (Shape s in shapes.Values)
+                    {
+                        s.Draw(bitmap);
+                    }
 
+                    foreach (Point point in selectedShapeOldPoints)
+                    {
+                        this.points.Remove(point);
+                        if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                        {
+                            continue;
+                        }
+                        bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                    }
+                    Shape shape = shapes[selectedShapeIndex];
+                    List<Point> newPoints = shape.GetPoints();
+                    foreach (Point point in newPoints)
+                    {
+                        this.points.TryAdd(point, selectedShapeIndex);
+                    }
+                    foreach (Shape s in shapes.Values)
+                    {
+                        s.Draw(bitmap);
+                    }
+                    selectedShapeIndex = -1;
+                }
+            }
+            else if(editorialMode == EditorialMode.Edit)
+            {
+                if (editState == EditState.Editing)
+                {
+                    editState = EditState.Start;
+                    foreach (Point point in selectedShapeOldPoints)
+                    {
+                        this.points.Remove(point);
+                        if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                        {
+                            continue;
+                        }
+                        bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                    }
+                    Shape shape = shapes[selectedShapeIndex];
+                    List<Point> newPoints = shape.GetPoints();
+                    foreach (Point point in newPoints)
+                    {
+                        this.points.TryAdd(point, selectedShapeIndex);
+                    }
+                    if (isCirclePointAroundTheVertex)
+                    {
+                        foreach (Point point in circlePointAroundTheVertex)
+                        {
+                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                            {
+                                continue;
+                            }
+                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                        }
+                        isCirclePointAroundTheVertex = false;
+                    }
+
+                    foreach (Shape s in shapes.Values)
+                    {
+                        s.Draw(bitmap);
+                    }
+                    selectedShapeIndex = -1;
+                }
+            }
         }
 
         private void imageControl_MouseMove(object sender, MouseEventArgs e)
         {
+            if (selectedShapeIndex != -1 && e.LeftButton == MouseButtonState.Pressed && editorialMode == EditorialMode.Move)
+            {
+                Point currentMousePosition = e.GetPosition(imageControl);
+                Vector displacement = currentMousePosition - lastMousePosition;
+                Shape selectedShape = shapes[selectedShapeIndex];
+                selectedShape.Move(displacement);
+                lastMousePosition = currentMousePosition;
 
+            }
+            if (selectedShapeIndex != -1 && e.LeftButton == MouseButtonState.Pressed && editorialMode == EditorialMode.Edit)
+            {
+                Point currentMousePosition = e.GetPosition(imageControl);
+                Shape selectedShape = shapes[selectedShapeIndex];
+                
+                if (selectedShape is Line)
+                {
+                    Line line = (Line)selectedShape;
+                    if((currentMousePosition - line.start).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        line.start = currentMousePosition;
+                    }
+                    else if((currentMousePosition - line.end).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        line.end = currentMousePosition;
+                    }
+                    
+                }
+                if (selectedShape is Polygons)
+                {
+                    Polygons polygon = (Polygons)selectedShape;
+                    if ((currentMousePosition - polygon.start).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        polygon.start = currentMousePosition;
+                    }
+                    List<Point> vertives = new List<Point>(polygon.vertives);
+                    foreach (Point point in vertives)
+                    {
+                        if ((currentMousePosition - point).Length < 15)
+                        {
+                            isCirclePointAroundTheVertex = true;
+
+                            polygon.vertives[polygon.vertives.IndexOf(point)] = currentMousePosition;
+                        }
+                    }
+                }
+                lastMousePosition = currentMousePosition;
+            }
         }
 
         private void checkboxXiaoliWu_Checked(object sender, RoutedEventArgs e)
@@ -988,8 +1229,6 @@ namespace Rasterization2
         private void sliderThickness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             thickness = (int)e.NewValue;
-            // Update the label's content with the new value of the slider
-            //valuelabelThickness.Content = ((int)e.NewValue).ToString();
         }
 
         private void colorpickerStroke_SelectedColorChanged(object sender, RoutedPropertyChangedEventArgs<System.Windows.Media.Color?> e)
@@ -999,6 +1238,33 @@ namespace Rasterization2
               
         }
 
+        private void buttonEdit_Unchecked(object sender, RoutedEventArgs e)
+        {
+            editorialMode = EditorialMode.None;
+            editState = EditState.Start;
+            isCirclePointAroundTheVertex = false;
+            foreach (Point point in circlePointAroundTheVertex)
+            {
+                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                {
+                    continue;
+                }
+                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+            }
+        }
 
+        private void buttonEdit_Checked(object sender, RoutedEventArgs e)
+        {
+            buttonLine.IsChecked = false;
+            buttonCircle.IsChecked = false;
+            buttonPolygon.IsChecked = false;
+            buttonMove.IsChecked = false;
+            buttonDelete.IsChecked = false;
+
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+            editorialMode = EditorialMode.Edit;
+            editState = EditState.Start;
+        }
     }
 }
