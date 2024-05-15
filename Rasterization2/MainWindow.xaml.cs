@@ -687,6 +687,75 @@ namespace Rasterization2
             }
         }
     }
+    public class Rectangle : Shape
+    {
+        public Point start;
+        public Point end;
+        public List<Point> vertices;
+
+        public Rectangle(Point start, Point end, double strokeThickness, Color strokeColor, bool XiaolinWu)
+        {
+            this.start = start;
+            this.end = end;
+            this.strokeThickness = strokeThickness;
+            this.strokeColor = strokeColor;
+            this.Xiaolin_Wu = XiaolinWu;
+        }
+
+        public override void Draw(WriteableBitmap writeableBitmap)
+        {
+            DrawRectangle(writeableBitmap, start, end);
+            vertices = new List<Point>
+            {
+                start,
+                new Point(end.X, start.Y),
+                end,
+                new Point(start.X, end.Y)
+            };
+        }
+
+        private List<Point> DrawRectangle(WriteableBitmap? writeableBitmap, Point start, Point end)
+        {
+            List<Point> points = new List<Point>();
+
+                Line tmp = new Line(start, new Point(end.X, start.Y), strokeThickness, strokeColor, Xiaolin_Wu);
+                tmp.Draw(writeableBitmap);
+                foreach (Point point in tmp.GetPoints())
+                {
+                    points.Add(point);
+                }
+                tmp = new Line(new Point(end.X, start.Y), end, strokeThickness, strokeColor, Xiaolin_Wu);
+                tmp.Draw(writeableBitmap);
+                foreach (Point point in tmp.GetPoints())
+                {
+                    points.Add(point);
+                }
+                tmp = new Line(end, new Point(start.X, end.Y), strokeThickness, strokeColor, Xiaolin_Wu);
+                tmp.Draw(writeableBitmap);
+                foreach (Point point in tmp.GetPoints())
+                {
+                    points.Add(point);
+                }
+                tmp = new Line(new Point(start.X, end.Y), start, strokeThickness, strokeColor, Xiaolin_Wu);
+                tmp.Draw(writeableBitmap);
+                foreach (Point point in tmp.GetPoints())
+                {
+                    points.Add(point);
+                }
+            return points;
+        }
+
+        public override List<Point> GetPoints()
+        {
+            return DrawRectangle(null, start, end);
+        }
+
+        public override void Move(Vector vector)
+        {
+            start = new Point(start.X + vector.X, start.Y + vector.Y);
+            end = new Point(end.X + vector.X, end.Y + vector.Y);
+        }
+    }
 
     public class ActiveEdgeTable
     {
@@ -730,10 +799,11 @@ namespace Rasterization2
     public partial class MainWindow : Window
     {
         private WriteableBitmap bitmap;
-        private enum DrawMode { Line, Circle, Rectangle, Polygon, None };
+        private enum DrawMode { Line, Circle, Rectangle, Polygon, None, Clipping};
         private enum DrawState { Start, Drawing, End };
         private enum EditorialMode { Move, Delete, Edit, None };
         private enum EditState { Start, Moving, Deleting, Editing, End };
+        private enum Outcode { INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8 };
         private EditorialMode editorialMode;
         private EditState editState;
         private DrawMode drawMode;
@@ -878,6 +948,19 @@ namespace Rasterization2
                 drawState = DrawState.Start;
             }
         }
+        private void buttonRectangle_Click(object sender, RoutedEventArgs e)
+        {
+            if (drawMode != DrawMode.Rectangle)
+            {
+                drawMode = DrawMode.Rectangle;
+                uncheckedAllOtherButtons(sender);
+            }
+            else
+            {
+                drawMode = DrawMode.None;
+                drawState = DrawState.Start;
+            }
+        }
 
         private void buttonEdit_Click(object sender, RoutedEventArgs e)
         {
@@ -942,12 +1025,109 @@ namespace Rasterization2
             }
         }
 
+        private void buttonClip_Click (object sender, RoutedEventArgs e)
+        {
+            if (selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
+            {
+                Polygons polygon = (Polygons)shapes[selectedShapeIndex];
+            }
+        }
+
+        private byte ComputeOutcome(Point p, Rectangle rectangle)
+        {
+            byte outcome = 0;
+            if(p.X < rectangle.vertices.Select(point => point.X).Min())
+            {
+                outcome |= (byte)Outcode.LEFT;
+            }
+            else if(p.X > rectangle.vertices.Select(point => point.X).Max())
+            {
+                outcome |= (byte)Outcode.RIGHT;
+            }
+            if(p.Y < rectangle.vertices.Select(point => point.Y).Min())
+            {
+                outcome |= (byte)Outcode.BOTTOM;
+            }
+            else if(p.Y > rectangle.vertices.Select(point => point.Y).Max())
+            {
+                outcome |= (byte)Outcode.TOP;
+            }
+            return outcome;
+        }
+        private void CohenSutherland(Point p1, Point p2, Rectangle clip)
+        {
+            bool accept = false;
+            byte outcome1 = ComputeOutcome(p1, clip);
+            byte outcome2 = ComputeOutcome(p2, clip);
+            do
+            {
+                if((outcome1 | outcome2) == 0)
+                {
+                    accept = true;
+                    break;
+                }
+                else if((outcome1 & outcome2) != 0)
+                {
+                    break;
+                }
+                else
+                {
+                    if (outcome1 != 0)
+                    {
+                        Point p = Subdivide(p1, p2, clip, outcome1);
+                        p1 = p;
+                        outcome1 = ComputeOutcome(p1, clip);
+                    }
+                    else
+                    {
+                        Point p = Subdivide(p2, p1, clip, outcome2);
+                        p2 = p;
+                        outcome2 = ComputeOutcome(p2, clip);
+                    }
+                }
+            } while (true);
+            if(accept)
+            {
+                Line line = new Line(p1, p2, thickness, currentColor, XiaolinWuFlag);
+                shapes.Add(index, line);
+                ++index;
+                line.Draw(bitmap);
+            }
+        }
+        Point Subdivide(Point p1, Point p2, Rectangle clip, byte outcome)
+        {
+            Point p = new Point();
+            if ((outcome & (byte)Outcode.TOP) != 0)
+            {
+                p.X = p1.X + (p2.X - p1.X) * (clip.vertices.Select(point => point.Y).Max() - p1.Y) / (p2.Y - p1.Y);
+                p.Y = clip.vertices.Select(point => point.Y).Max();
+            }
+            else if((outcome & (byte)Outcode.BOTTOM) != 0)
+            {
+                p.X = p1.X + (p2.X - p1.X) * (clip.vertices.Select(point => point.Y).Min() - p1.Y) / (p2.Y - p1.Y);
+                p.Y = clip.vertices.Select(point => point.Y).Min();
+            }
+            else if((outcome & (byte)Outcode.RIGHT) != 0)
+            {
+                p.Y = p1.Y + (p2.Y - p1.Y) * (clip.vertices.Select(point => point.X).Max() - p1.X) / (p2.X - p1.X);
+                p.X = clip.vertices.Select(point => point.X).Max();
+            }
+            else if((outcome & (byte)Outcode.LEFT) != 0)
+            {
+                p.Y = p1.Y + (p2.Y - p1.Y) * (clip.vertices.Select(point => point.X).Min() - p1.X) / (p2.X - p1.X);
+                p.X = clip.vertices.Select(point => point.X).Min();
+            }
+            return p;
+        }
+
+
         private void uncheckedAllOtherButtons(object? button)
         {
             ToggleButton? toggleButton = button as ToggleButton;
             buttonLine.IsChecked = false;
             buttonCircle.IsChecked = false;
             buttonPolygon.IsChecked = false;
+            buttonRectangle.IsChecked = false;
             buttonEdit.IsChecked = false;
             buttonMove.IsChecked = false;
             buttonDelete.IsChecked = false;
@@ -1108,6 +1288,68 @@ namespace Rasterization2
                     drawState = DrawState.Start;
                 }
             }
+            else if (drawMode == DrawMode.Rectangle)
+            {
+                if (drawState == DrawState.Start)
+                {
+                    Point p = e.GetPosition(imageControl);
+                    Rectangle rectangle = new Rectangle(p, p, thickness, currentColor, XiaolinWuFlag);
+                    shapes.Add(index, rectangle);
+                    drawState = DrawState.Drawing;
+                    ++index;
+                }
+                else if (drawState == DrawState.Drawing)
+                {
+                    Point p = e.GetPosition(imageControl);
+                    Rectangle rectangle = (Rectangle)shapes[index - 1];
+                    rectangle.end = p;
+                    shapes[index - 1] = rectangle;
+
+                    List<Point> points = rectangle.GetPoints();
+                    foreach (Point point in points)
+                    {
+                        this.points.TryAdd(point, index - 1);
+                    }
+                    rectangle.Draw(bitmap);
+                    drawState = DrawState.Start;
+
+                }
+                else if (drawState == DrawState.End)
+                {
+                    drawState = DrawState.Start;
+                }
+            }
+            else if (drawMode == DrawMode.Clipping) {
+                if (drawState == DrawState.Start)
+                {
+                    Point p = e.GetPosition(imageControl);
+                    Rectangle rectangle = new Rectangle(p, p, thickness, currentColor, XiaolinWuFlag);
+                    shapes.Add(index, rectangle);
+                    drawState = DrawState.Drawing;
+                    ++index;
+                }
+                else if (drawState == DrawState.Drawing)
+                {
+                    Point p = e.GetPosition(imageControl);
+                    Rectangle rectangle = (Rectangle)shapes[index - 1];
+                    rectangle.end = p;
+                    shapes[index - 1] = rectangle;
+
+                    List<Point> points = rectangle.GetPoints();
+                    foreach (Point point in points)
+                    {
+                        this.points.TryAdd(point, index - 1);
+                    }
+                    rectangle.Draw(bitmap);
+                    drawState = DrawState.Start;
+
+                }
+                else if (drawState == DrawState.End)
+                {
+                    drawState = DrawState.Start;
+                }
+            }
+
             else if (drawMode == DrawMode.None)
             {
                 if (editorialMode == EditorialMode.Delete)
@@ -1168,6 +1410,17 @@ namespace Rasterization2
                                 editState = EditState.Moving;
                                 lastMousePosition = e.GetPosition(imageControl);
                                 selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
+
+                                //Moving the filling
+                                if (shapes[selectedShapeIndex] is Polygons)
+                                {
+                                    Polygons polygon = shapes[selectedShapeIndex] as Polygons;
+                                    selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(), polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
+                                    {
+                                        isFilled = polygon.isFilled,
+                                        fillColor = polygon.fillColor
+                                    };
+                                }
                                 break;
                             }
                         }
@@ -1245,6 +1498,23 @@ namespace Rasterization2
                                         {
                                             circlePointAroundTheVertex.Add(point);
                                         }
+                                    }
+                                    if (shape is Rectangle)
+                                    {
+                                        Rectangle rectangle = (Rectangle)shape;
+                                        Circle circle = new Circle(rectangle.start, 10, 1, Color.Blue, false);
+                                        circle.Draw(bitmap);
+                                        foreach (Point point in circle.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+                                        Circle circle2 = new Circle(rectangle.end, 10, 1, Color.Blue, false);
+                                        circle2.Draw(bitmap);
+                                        foreach (Point point in circle2.GetPoints())
+                                        {
+                                            circlePointAroundTheVertex.Add(point);
+                                        }
+
                                     }
                                     editState = EditState.Editing;
                                     lastMousePosition = e.GetPosition(imageControl);
@@ -1433,6 +1703,22 @@ namespace Rasterization2
                         isCirclePointAroundTheVertex = true;
 
                         circle.radius = (currentMousePosition - circle.center).Length;
+                    }
+                }
+                if (selectedShape is Rectangle)
+                {
+                    Rectangle rectangle = (Rectangle)selectedShape;
+                    if ((currentMousePosition - rectangle.start).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        rectangle.start = currentMousePosition;
+                    }
+                    if ((currentMousePosition - rectangle.end).Length < 15)
+                    {
+                        isCirclePointAroundTheVertex = true;
+
+                        rectangle.end = currentMousePosition;
                     }
                 }
                 lastMousePosition = currentMousePosition;

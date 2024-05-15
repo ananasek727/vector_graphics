@@ -54,6 +54,7 @@
                                 <ToggleButton x:Name="buttonMove" Grid.Row="0" Grid.Column="1" Width="50" Height="50" Click="buttonMove_Click" >Move</ToggleButton>
                                 <ToggleButton x:Name="buttonDelete" Grid.Row="0" Grid.Column="2" Width="50" Height="50" Click="buttonDelete_Click" >Delete</ToggleButton>
                                 <Button x:Name="buttonFill" Grid.Row="1" Grid.Column="0" Width="50" Height="50" Click="buttonFill_Click" >Fill</Button>
+                                <Button x:Name="buttonClip" Grid.Row="1" Grid.Column="1" Width="50" Height="50" Click="buttonClip_Click" >Clip</Button>
                             </Grid>
                         </Grid>
                         <Grid Grid.Row="1">
@@ -73,12 +74,14 @@
                         <RowDefinition Height="1*"></RowDefinition>
                         <RowDefinition Height="1*"></RowDefinition>
                         <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="1*"></RowDefinition>
                     </Grid.RowDefinitions>
                    
                     <ToggleButton x:Name="buttonLine" Grid.Row="0" Height="50" Click="buttonLine_Click">Line</ToggleButton>
                     <ToggleButton x:Name="buttonCircle" Grid.Row="1" Height="50" Click="buttonCircle_Click">Circle</ToggleButton>
                     <ToggleButton x:Name="buttonPolygon" Grid.Row="2" Height="50" Click="buttonPolygon_Click">Polygon</ToggleButton>
-                    <Button x:Name="buttonClear" Grid.Row="3" Height="50" Click="buttonClear_Click">Clear</Button>
+                    <ToggleButton x:Name="buttonRectangle" Grid.Row="3" Height="50" Click="buttonRectangle_Click">Rectangle</ToggleButton>
+                    <Button x:Name="buttonClear" Grid.Row="4" Height="50" Click="buttonClear_Click">Clear</Button>
                 </Grid>
             </Grid>
         </Border>
