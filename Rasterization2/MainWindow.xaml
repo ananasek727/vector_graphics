@@ -23,21 +23,21 @@
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="1*"></RowDefinition>
+                        <RowDefinition Height="0.5*"></RowDefinition>
                         <RowDefinition Height="2*"></RowDefinition>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22">Options:</Label>
                     <Grid Grid.Row="1">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="1*"></RowDefinition>
+                            <RowDefinition Height="2*"></RowDefinition>
                             <RowDefinition Height="1*"></RowDefinition>
                             <RowDefinition Height="1*"></RowDefinition>
 
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <Grid.RowDefinitions>
-                                <RowDefinition></RowDefinition>
-                                <RowDefinition></RowDefinition>
+                                <RowDefinition Height="1*"></RowDefinition>
+                                <RowDefinition Height="2*"></RowDefinition>
                             </Grid.RowDefinitions>
                             <CheckBox Grid.Row="0" x:Name="checkboxXiaoliWu" Checked="checkboxXiaoliWu_Checked" Unchecked="checkboxXiaoliWu_Unchecked" >Xiaolin Wu</CheckBox>
                             <Grid Grid.Row="1">
@@ -46,10 +46,14 @@
                                     <ColumnDefinition></ColumnDefinition>
                                     <ColumnDefinition></ColumnDefinition>
                                 </Grid.ColumnDefinitions>
-                                <ToggleButton x:Name="buttonEdit" Grid.Column="0" Width="50" Click="buttonEdit_Click" Unchecked="buttonEdit_Unchecked" Checked="buttonEdit_Checked" >Edit</ToggleButton>
-                                <ToggleButton x:Name="buttonMove" Grid.Column="1" Width="50" Click="buttonMove_Click" >Move</ToggleButton>
-                                <ToggleButton x:Name="buttonDelete" Grid.Column="2" Width="50" Click="buttonDelete_Click" >Delete</ToggleButton>
-
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="1*"></RowDefinition>
+                                    <RowDefinition Height="1*"></RowDefinition>
+                                </Grid.RowDefinitions>
+                                <ToggleButton x:Name="buttonEdit" Grid.Row="0" Grid.Column="0" Width="50" Height="50" Click="buttonEdit_Click" Unchecked="buttonEdit_Unchecked" Checked="buttonEdit_Checked" >Edit</ToggleButton>
+                                <ToggleButton x:Name="buttonMove" Grid.Row="0" Grid.Column="1" Width="50" Height="50" Click="buttonMove_Click" >Move</ToggleButton>
+                                <ToggleButton x:Name="buttonDelete" Grid.Row="0" Grid.Column="2" Width="50" Height="50" Click="buttonDelete_Click" >Delete</ToggleButton>
+                                <Button x:Name="buttonFill" Grid.Row="1" Grid.Column="0" Width="50" Height="50" Click="buttonFill_Click" >Fill</Button>
                             </Grid>
                         </Grid>
                         <Grid Grid.Row="1">

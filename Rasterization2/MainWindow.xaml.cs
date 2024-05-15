@@ -20,6 +20,7 @@ using System.Windows.Controls.Primitives;
 using System.Diagnostics.Eventing.Reader;
 using System.Windows.Ink;
 using System.Data;
+using Xceed.Wpf.AvalonDock.Themes;
 
 namespace Rasterization2
 {
@@ -598,6 +599,8 @@ namespace Rasterization2
     {
         public Point start;
         public List<Point> vertives;
+        public bool isFilled;
+        public Color fillColor;
 
         public Polygons(Point start, List<Point> vertives, double strokeThickness, Color strokeColor, bool XiaolinWu)
         {
@@ -606,6 +609,8 @@ namespace Rasterization2
             this.strokeThickness = strokeThickness;
             this.strokeColor = strokeColor;
             this.Xiaolin_Wu = XiaolinWu;
+            isFilled = false;
+            fillColor = Color.FromArgb(255, 255, 255, 255);
         }
         public override void Draw(WriteableBitmap writeableBitmap)
         {
@@ -683,6 +688,45 @@ namespace Rasterization2
         }
     }
 
+    public class ActiveEdgeTable
+    {
+        public List<(int, double, double)> AET; // y, x, m
+        public ActiveEdgeTable()
+        {
+            AET = new List<(int, double, double)>();
+        }
+        public void AddEdge(Point point1, Point point2)
+        {
+            int y = Math.Max((int)point1.Y, (int)point2.Y);
+            double x = point1.Y < point2.Y ? (int)point1.X : (int)point2.X;
+            if (point1.Y == point2.Y)
+            {
+                return;
+            }
+            double mInverse = (point2.X - point1.X) / (point2.Y - point1.Y);
+            AET.Add((y, x, mInverse));
+        }
+        public void Sort()
+        {
+            AET.Sort((a, b) => a.Item2.CompareTo(b.Item2));
+        }
+        public void Update(int y)
+        {
+            for (int i = 0; i < AET.Count; i++)
+            {
+                if (AET[i].Item1 == y)
+                {
+                    AET.RemoveAt(i);
+                    i--;
+                } 
+                else
+                {
+                    AET[i] = (AET[i].Item1, AET[i].Item2 + AET[i].Item3, AET[i].Item3);
+                }
+            }
+        }
+    }
+
     public partial class MainWindow : Window
     {
         private WriteableBitmap bitmap;
@@ -705,6 +749,25 @@ namespace Rasterization2
         private Point lastMousePosition;
         private List<Point> circlePointAroundTheVertex;
         private bool isCirclePointAroundTheVertex;
+        private Shape? selectedShapeOldFilled;
+
+        public void putPixel(WriteableBitmap writeableBitmap, int x, int y, Color color)
+        {
+            try
+            {
+                if (x < 0 || x >= writeableBitmap.PixelWidth || y < 0 || y >= writeableBitmap.PixelHeight)
+                {
+                    return;
+                }
+                writeableBitmap.WritePixels(new Int32Rect(x, y, 1, 1), new byte[] { color.B, color.G, color.R, color.A }, 4, 0);
+            }
+            catch (Exception e)
+            {
+
+            }
+        }
+
+
         public MainWindow()
         {
             InitializeComponent();
@@ -722,7 +785,8 @@ namespace Rasterization2
             selectedShapeOldPoints = new List<Point>();
             circlePointAroundTheVertex = new List<Point>();
             isCirclePointAroundTheVertex = false;
-            
+            buttonFill.IsEnabled = false;
+            selectedShapeOldFilled = null;
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -765,7 +829,7 @@ namespace Rasterization2
             return new Circle(center, radius, 1, Color.Black, false).GetPoints();
         }
 
-                private void buttonClear_Click(object sender, RoutedEventArgs e)
+        private void buttonClear_Click(object sender, RoutedEventArgs e)
         {
             paintBackground(bitmap, new byte[] { 255, 255, 255, 255 });
             uncheckedAllOtherButtons(null);
@@ -818,8 +882,6 @@ namespace Rasterization2
         private void buttonEdit_Click(object sender, RoutedEventArgs e)
         {
 
-
-
         }
 
         private void buttonMove_Click(object sender, RoutedEventArgs e)
@@ -839,6 +901,46 @@ namespace Rasterization2
             editorialMode = EditorialMode.Delete;
             editState = EditState.Start;
         }
+        private void buttonEdit_Checked(object sender, RoutedEventArgs e)
+        {
+            buttonLine.IsChecked = false;
+            buttonCircle.IsChecked = false;
+            buttonPolygon.IsChecked = false;
+            buttonMove.IsChecked = false;
+            buttonDelete.IsChecked = false;
+            buttonFill.IsEnabled = true;
+
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+            editorialMode = EditorialMode.Edit;
+            editState = EditState.Start;
+        }
+
+        private void buttonEdit_Unchecked(object sender, RoutedEventArgs e)
+        {
+            editorialMode = EditorialMode.None;
+            editState = EditState.Start;
+            isCirclePointAroundTheVertex = false;
+            foreach (Point point in circlePointAroundTheVertex)
+            {
+                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                {
+                    continue;
+                }
+                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+            }
+        }
+
+        private void buttonFill_Click(object sender, RoutedEventArgs e)
+        {
+            if (selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
+            {
+                Polygons polygon = (Polygons)shapes[selectedShapeIndex];
+                polygon.isFilled = true;
+                polygon.fillColor = currentColor;
+                fill(polygon, currentColor, true);
+            }
+        }
 
         private void uncheckedAllOtherButtons(object? button)
         {
@@ -849,12 +951,62 @@ namespace Rasterization2
             buttonEdit.IsChecked = false;
             buttonMove.IsChecked = false;
             buttonDelete.IsChecked = false;
+            buttonFill.IsEnabled = false;
             if (toggleButton != null)
             {
                 toggleButton.IsChecked = true;
             }
         }
 
+        private List<Point> fill(Polygons polygons, Color color, bool draw)
+        {
+            List<Point> pointsReturn = new List<Point>();
+            int k = 0;
+            
+            List<Point> points = polygons.vertives;
+            List<int> indecesSortedByY = new List<int>();
+            for (int l = 0; l < points.Count; l++)
+            {
+                indecesSortedByY.Add(l);
+            }
+            indecesSortedByY.Sort((a, b) => points[a].Y.CompareTo(points[b].Y));
+
+            int y = (int)points[indecesSortedByY[0]].Y; //ymin
+            int ymax = (int)points[indecesSortedByY[indecesSortedByY.Count - 1]].Y;
+            
+            int i = indecesSortedByY[k];
+
+            ActiveEdgeTable AET = new ActiveEdgeTable();
+            while (y < ymax)
+            {
+                while (k < points.Count && points[indecesSortedByY[k]].Y == y) 
+                {
+                    int idx = i - 1 >= 0 ? i - 1 : indecesSortedByY.Count - 1;
+                    if (points[idx].Y >= points[i].Y)
+                        AET.AddEdge(points[i], points[idx]);
+                    
+                    idx = i + 1 <= indecesSortedByY.Count - 1 ? i + 1 : 0;
+                    if (points[idx].Y >= points[i].Y)
+                        AET.AddEdge(points[i], points[idx]);
+                    ++k;
+                    i = indecesSortedByY[k];
+                }
+                AET.Sort();
+                
+                for (int j = 0; j < AET.AET.Count - 1; j += 2)
+                {
+                    for (int x = (int)AET.AET[j].Item2; x < (int)AET.AET[j + 1].Item2; x++)
+                    {
+                        if(draw)
+                            putPixel(bitmap, x, y, color);
+                        pointsReturn.Add(new Point(x, y));
+                    }
+                }
+                ++y;
+                AET.Update(y);
+            }
+            return pointsReturn;
+        }
         private void imageControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (drawMode == DrawMode.Line)
@@ -1070,17 +1222,22 @@ namespace Rasterization2
                                         }
                                         //put circle in the middle of edges of the polygon
                                         for (int i = 0; i < polygon.vertives.Count - 1; i++)
-                                    {
+                                        {
                                             Circle circle2 = new Circle(new Point((polygon.vertives[i].X + polygon.vertives[i + 1].X) / 2, (polygon.vertives[i].Y + polygon.vertives[i + 1].Y) / 2), 10, 1, Color.Blue, false);
                                             circle2.Draw(bitmap);
                                             foreach (Point point in circle2.GetPoints())
-                                        {
+                                            {
                                                 circlePointAroundTheVertex.Add(point);
                                             }
                                         }
+                                        selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(),        polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
+                                        {
+                                            isFilled = polygon.isFilled,
+                                            fillColor = polygon.fillColor
+                                        };
                                     }
                                     if (shape is Circle)
-                                {
+                                    {
                                         Circle circle = (Circle)shape;
                                         Circle circle3 = new Circle(new Point(circle.center.X + circle.radius,      circle.center.Y), 10, 1, Color.Blue, false);
                                         circle3.Draw(bitmap);
@@ -1093,7 +1250,7 @@ namespace Rasterization2
                                     lastMousePosition = e.GetPosition(imageControl);
                                     selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
 
-                                break;
+                                    break;
                                 }
                             }
                     }
@@ -1169,13 +1326,36 @@ namespace Rasterization2
                             bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
                         }
                         isCirclePointAroundTheVertex = false;
+                     
                     }
+                    if (selectedShapeOldFilled != null)
+                    {
+                        Polygons polygon = (Polygons)selectedShapeOldFilled;
+                        foreach (Point point in fill(polygon, polygon.fillColor, false))
+                        {
+                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                            {
+                                continue;
+                            }
+                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                        }
+                        selectedShapeOldFilled = null;
+                    }
+
 
                     foreach (Shape s in shapes.Values)
                     {
                         s.Draw(bitmap);
+                        if (s is Polygons)
+                        {
+                            Polygons polygon = (Polygons)s;
+                            if (polygon.isFilled)
+                            {
+                                fill(polygon, polygon.fillColor, true);
+                            }
+                        }
                     }
-                    selectedShapeIndex = -1;
+                    //selectedShapeIndex = -1;
                 }
             }
         }
@@ -1216,6 +1396,7 @@ namespace Rasterization2
                 if (selectedShape is Polygons)
                 {
                     Polygons polygon = (Polygons)selectedShape;
+
                     if ((currentMousePosition - polygon.start).Length < 15)
                     {
                         isCirclePointAroundTheVertex = true;
@@ -1277,35 +1458,6 @@ namespace Rasterization2
             if(colorpickerStroke.SelectedColor.HasValue)
                 currentColor = Color.FromArgb(colorpickerStroke.SelectedColor.Value.A, colorpickerStroke.SelectedColor.Value.R, colorpickerStroke.SelectedColor.Value.G, colorpickerStroke.SelectedColor.Value.B);
               
-        }
-
-        private void buttonEdit_Unchecked(object sender, RoutedEventArgs e)
-        {
-            editorialMode = EditorialMode.None;
-            editState = EditState.Start;
-            isCirclePointAroundTheVertex = false;
-            foreach (Point point in circlePointAroundTheVertex)
-            {
-                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
-                {
-                    continue;
-                }
-                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
-            }
-        }
-
-        private void buttonEdit_Checked(object sender, RoutedEventArgs e)
-        {
-            buttonLine.IsChecked = false;
-            buttonCircle.IsChecked = false;
-            buttonPolygon.IsChecked = false;
-            buttonMove.IsChecked = false;
-            buttonDelete.IsChecked = false;
-
-            drawMode = DrawMode.None;
-            drawState = DrawState.Start;
-            editorialMode = EditorialMode.Edit;
-            editState = EditState.Start;
         }
     }
 }
