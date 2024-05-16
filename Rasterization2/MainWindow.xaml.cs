@@ -704,6 +704,7 @@ namespace Rasterization2
 
         public override void Draw(WriteableBitmap writeableBitmap)
         {
+            this.UpdateVertices();
             DrawRectangle(writeableBitmap, start, end);
             vertices = new List<Point>
             {
@@ -754,6 +755,16 @@ namespace Rasterization2
         {
             start = new Point(start.X + vector.X, start.Y + vector.Y);
             end = new Point(end.X + vector.X, end.Y + vector.Y);
+        }
+        public void UpdateVertices()
+        {
+            vertices = new List<Point>
+            {
+                start,
+                new Point(end.X, start.Y),
+                end,
+                new Point(start.X, end.Y)
+            };
         }
     }
 
@@ -820,6 +831,7 @@ namespace Rasterization2
         private List<Point> circlePointAroundTheVertex;
         private bool isCirclePointAroundTheVertex;
         private Shape? selectedShapeOldFilled;
+        private Rectangle clippingRectangle;
 
         public void putPixel(WriteableBitmap writeableBitmap, int x, int y, Color color)
         {
@@ -857,6 +869,7 @@ namespace Rasterization2
             isCirclePointAroundTheVertex = false;
             buttonFill.IsEnabled = false;
             selectedShapeOldFilled = null;
+            clippingRectangle = new Rectangle(new Point(0, 0), new Point(0, 0), 1, Color.Black, false);
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -992,6 +1005,7 @@ namespace Rasterization2
             buttonMove.IsChecked = false;
             buttonDelete.IsChecked = false;
             buttonFill.IsEnabled = true;
+            buttonClip.IsEnabled = true;
 
             drawMode = DrawMode.None;
             drawState = DrawState.Start;
@@ -1027,34 +1041,47 @@ namespace Rasterization2
 
         private void buttonClip_Click (object sender, RoutedEventArgs e)
         {
-            if (selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
+            if (drawMode != DrawMode.Clipping && selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
             {
-                Polygons polygon = (Polygons)shapes[selectedShapeIndex];
+                drawMode = DrawMode.Clipping;
+                uncheckedAllOtherButtons(sender);
+                buttonClip.IsEnabled = true;
+                drawState = DrawState.Start;
+            }
+            else
+            {
+                drawMode = DrawMode.None;
+                drawState = DrawState.Start;
             }
         }
 
         private byte ComputeOutcome(Point p, Rectangle rectangle)
         {
             byte outcome = 0;
-            if(p.X < rectangle.vertices.Select(point => point.X).Min())
+            double minX = rectangle.vertices.Select(point => point.X).Min();
+            double maxX = rectangle.vertices.Select(point => point.X).Max();
+            double minY = rectangle.vertices.Select(point => point.Y).Min();
+            double maxY = rectangle.vertices.Select(point => point.Y).Max();
+
+            if (p.X < minX)
             {
                 outcome |= (byte)Outcode.LEFT;
             }
-            else if(p.X > rectangle.vertices.Select(point => point.X).Max())
+            else if (p.X > maxX)
             {
                 outcome |= (byte)Outcode.RIGHT;
             }
-            if(p.Y < rectangle.vertices.Select(point => point.Y).Min())
+            if (p.Y < minY)
             {
                 outcome |= (byte)Outcode.BOTTOM;
             }
-            else if(p.Y > rectangle.vertices.Select(point => point.Y).Max())
+            else if (p.Y > maxY)
             {
                 outcome |= (byte)Outcode.TOP;
             }
             return outcome;
         }
-        private void CohenSutherland(Point p1, Point p2, Rectangle clip)
+        private (Point, Point) CohenSutherland(Point p1, Point p2, Rectangle clip)
         {
             bool accept = false;
             byte outcome1 = ComputeOutcome(p1, clip);
@@ -1088,39 +1115,86 @@ namespace Rasterization2
             } while (true);
             if(accept)
             {
-                Line line = new Line(p1, p2, thickness, currentColor, XiaolinWuFlag);
-                shapes.Add(index, line);
-                ++index;
-                line.Draw(bitmap);
+                return (p1, p2);
+            }
+            else
+            {
+                return (new Point(-1, -1), new Point(-1, -1));
             }
         }
         Point Subdivide(Point p1, Point p2, Rectangle clip, byte outcome)
         {
             Point p = new Point();
+            double minX = clip.vertices.Select(point => point.X).Min();
+            double maxX = clip.vertices.Select(point => point.X).Max();
+            double minY = clip.vertices.Select(point => point.Y).Min();
+            double maxY = clip.vertices.Select(point => point.Y).Max();
+
             if ((outcome & (byte)Outcode.TOP) != 0)
             {
-                p.X = p1.X + (p2.X - p1.X) * (clip.vertices.Select(point => point.Y).Max() - p1.Y) / (p2.Y - p1.Y);
-                p.Y = clip.vertices.Select(point => point.Y).Max();
+                p.X = p1.X + (p2.X - p1.X) * (maxY - p1.Y) / (p2.Y - p1.Y);
+                p.Y = maxY;
             }
-            else if((outcome & (byte)Outcode.BOTTOM) != 0)
+            else if ((outcome & (byte)Outcode.BOTTOM) != 0)
             {
-                p.X = p1.X + (p2.X - p1.X) * (clip.vertices.Select(point => point.Y).Min() - p1.Y) / (p2.Y - p1.Y);
-                p.Y = clip.vertices.Select(point => point.Y).Min();
+                p.X = p1.X + (p2.X - p1.X) * (minY - p1.Y) / (p2.Y - p1.Y);
+                p.Y = minY;
             }
-            else if((outcome & (byte)Outcode.RIGHT) != 0)
+            else if ((outcome & (byte)Outcode.RIGHT) != 0)
             {
-                p.Y = p1.Y + (p2.Y - p1.Y) * (clip.vertices.Select(point => point.X).Max() - p1.X) / (p2.X - p1.X);
-                p.X = clip.vertices.Select(point => point.X).Max();
+                p.Y = p1.Y + (p2.Y - p1.Y) * (maxX - p1.X) / (p2.X - p1.X);
+                p.X = maxX;
             }
-            else if((outcome & (byte)Outcode.LEFT) != 0)
+            else if ((outcome & (byte)Outcode.LEFT) != 0)
             {
-                p.Y = p1.Y + (p2.Y - p1.Y) * (clip.vertices.Select(point => point.X).Min() - p1.X) / (p2.X - p1.X);
-                p.X = clip.vertices.Select(point => point.X).Min();
+                p.Y = p1.Y + (p2.Y - p1.Y) * (minX - p1.X) / (p2.X - p1.X);
+                p.X = minX;
             }
             return p;
         }
 
-
+        //return true if the point is in the triangle
+        private bool isPointInTriangle(Point p, Point p1, Point p2, Point p3)
+        {
+            double A = 1.0 / 2 * (-p2.Y * p3.X + p1.Y * (-p2.X + p3.X) + p1.X * (p2.Y - p3.Y) + p2.X * p3.Y);
+            double sign = A < 0 ? -1 : 1;
+            double s = (p1.Y * p3.X - p1.X * p3.Y + (p3.Y - p1.Y) * p.X + (p1.X - p3.X) * p.Y) * sign;
+            double t = (p1.X * p2.Y - p1.Y * p2.X + (p1.Y - p2.Y) * p.X + (p2.X - p1.X) * p.Y) * sign;
+            return s > 0 && t > 0 && (s + t) < 2 * A * sign;
+        }
+        private double distancePointToLine(Point p, Point p1, Point p2)
+        {
+            double A = p.X - p1.X;
+            double B = p.Y - p1.Y;
+            double C = p2.X - p1.X;
+            double D = p2.Y - p1.Y;
+            double dot = A * C + B * D;
+            double len_sq = C * C + D * D;
+            double param = -1;
+            if (len_sq != 0)
+            {
+                param = dot / len_sq;
+            }
+            double xx, yy;
+            if (param < 0)
+            {
+                xx = p1.X;
+                yy = p1.Y;
+            }
+            else if (param > 1)
+            {
+                xx = p2.X;
+                yy = p2.Y;
+            }
+            else
+            {
+                xx = p1.X + param * C;
+                yy = p1.Y + param * D;
+            }
+            double dx = p.X - xx;
+            double dy = p.Y - yy;
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
         private void uncheckedAllOtherButtons(object? button)
         {
             ToggleButton? toggleButton = button as ToggleButton;
@@ -1132,6 +1206,7 @@ namespace Rasterization2
             buttonMove.IsChecked = false;
             buttonDelete.IsChecked = false;
             buttonFill.IsEnabled = false;
+            buttonClip.IsEnabled = false;
             if (toggleButton != null)
             {
                 toggleButton.IsChecked = true;
@@ -1323,24 +1398,114 @@ namespace Rasterization2
                 if (drawState == DrawState.Start)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Rectangle rectangle = new Rectangle(p, p, thickness, currentColor, XiaolinWuFlag);
-                    shapes.Add(index, rectangle);
+                    clippingRectangle = new Rectangle(p, p, thickness, currentColor, XiaolinWuFlag);
                     drawState = DrawState.Drawing;
-                    ++index;
+
                 }
                 else if (drawState == DrawState.Drawing)
                 {
                     Point p = e.GetPosition(imageControl);
-                    Rectangle rectangle = (Rectangle)shapes[index - 1];
-                    rectangle.end = p;
-                    shapes[index - 1] = rectangle;
+                    clippingRectangle.end = p;
 
-                    List<Point> points = rectangle.GetPoints();
+                    List<Point> points = clippingRectangle.GetPoints();
                     foreach (Point point in points)
                     {
                         this.points.TryAdd(point, index - 1);
                     }
-                    rectangle.Draw(bitmap);
+                    clippingRectangle.UpdateVertices();
+
+                    double minX = clippingRectangle.vertices.Select(point => point.X).Min();
+                    double maxX = clippingRectangle.vertices.Select(point => point.X).Max();
+                    double minY = clippingRectangle.vertices.Select(point => point.Y).Min();
+                    double maxY = clippingRectangle.vertices.Select(point => point.Y).Max();
+
+
+                    Polygons polygons = (Polygons)shapes[selectedShapeIndex];
+                    List<Point> clippedPoints = new List<Point>();
+                    for (int i = 0; i < polygons.vertives.Count - 1; i++)
+                    {
+                        (Point, Point) clipped = CohenSutherland(polygons.vertives[i], polygons.vertives[i + 1], clippingRectangle);
+                        if (clipped.Item1.X == -1 && clipped.Item1.Y == -1 && clipped.Item2.X == -1 && clipped.Item2.Y == -1)
+                        {
+                            //add rectangle vertex nearest to chacking line
+                            double minDistance = double.MaxValue;
+                            Point nearestPoint = new Point();
+                            for (int j = 0; j < clippingRectangle.vertices.Count; j++)
+                            {
+                                double distance = distancePointToLine(clippingRectangle.vertices[j], polygons.vertives[i], polygons.vertives[i + 1]);
+                                if (distance < minDistance)
+                                {
+                                    minDistance = distance;
+                                    nearestPoint = clippingRectangle.vertices[j];
+                                }
+                            
+                            }
+                            clippedPoints.Add(nearestPoint);
+                            continue;
+                        }
+                        clippedPoints.Add(clipped.Item1);
+                        //check if the clippedRectangle vertices are inside area of the clamping polygon so we need to add them
+  
+                        clippedPoints.Add(clipped.Item2);
+                    }
+                    (Point, Point) clipped1 = CohenSutherland(polygons.vertives[polygons.vertives.Count-1], polygons.vertives[0], clippingRectangle);
+                    if (clipped1.Item1.X == -1 && clipped1.Item1.Y == -1 && clipped1.Item2.X == -1 && clipped1.Item2.Y == -1)
+                    {
+                        //add rectangle vertex nearest to chacking line
+                        double minDistance = double.MaxValue;
+                        Point nearestPoint = new Point();
+                        for (int j = 0; j < clippingRectangle.vertices.Count; j++)
+                        {
+                            double distance = distancePointToLine(clippingRectangle.vertices[j], polygons.vertives[polygons.vertives.Count - 1], polygons.vertives[0]);
+                            if (distance < minDistance)
+                            {
+                                minDistance = distance;
+                                nearestPoint = clippingRectangle.vertices[j];
+                            }
+
+                        }
+                        clippedPoints.Add(nearestPoint);
+                    }
+                    else
+                    {
+                        clippedPoints.Add(clipped1.Item1);
+                        clippedPoints.Add(clipped1.Item2);
+                        
+                    }
+                    Polygons clippedPolygon = new Polygons(clippedPoints.First(), clippedPoints, polygons.strokeThickness, polygons.strokeColor, polygons.Xiaolin_Wu)
+                    {
+                        isFilled = polygons.isFilled,
+                        fillColor = polygons.fillColor
+                    };
+
+                    foreach (Point point in polygons.GetPoints())
+                    {
+                        this.points.Remove(point);
+                        if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                        {
+                            continue;
+                        }
+                        bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                    }
+                    if (polygons.isFilled)
+                    {
+                        foreach (Point point in fill(polygons, polygons.fillColor, false))
+                        {
+                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                            {
+                                continue;
+                            }
+                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                        }
+                        fill(clippedPolygon, polygons.fillColor, true);
+                    }
+                    foreach (Point point in clippedPolygon.GetPoints())
+                    {
+                        this.points.TryAdd(point, selectedShapeIndex);
+                    }
+                    clippingRectangle.Draw(bitmap);
+                    clippedPolygon.Draw(bitmap);
+                    shapes[selectedShapeIndex] = clippedPolygon;
                     drawState = DrawState.Start;
 
                 }
@@ -1349,7 +1514,6 @@ namespace Rasterization2
                     drawState = DrawState.Start;
                 }
             }
-
             else if (drawMode == DrawMode.None)
             {
                 if (editorialMode == EditorialMode.Delete)
