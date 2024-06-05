@@ -55,6 +55,7 @@
                                 <ToggleButton x:Name="buttonDelete" Grid.Row="0" Grid.Column="2" Width="50" Height="50" Click="buttonDelete_Click" >Delete</ToggleButton>
                                 <Button x:Name="buttonFill" Grid.Row="1" Grid.Column="0" Width="50" Height="50" Click="buttonFill_Click" >Fill</Button>
                                 <Button x:Name="buttonClip" Grid.Row="1" Grid.Column="1" Width="50" Height="50" Click="buttonClip_Click" >Clip</Button>
+                                <Button x:Name="buttonFillWithPatern" Grid.Row="1" Grid.Column="2" Width="50" Height="50">Pattern</Button>
                             </Grid>
                         </Grid>
                         <Grid Grid.Row="1">

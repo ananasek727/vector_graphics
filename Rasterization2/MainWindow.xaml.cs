@@ -642,7 +642,7 @@ namespace Rasterization2
                     points.Add(point);
                 }
             }
-            tmp = new Line(start, vertives.Last<Point>(), strokeThickness, strokeColor, Xiaolin_Wu);
+            tmp = new Line(start, vertives.Last(), strokeThickness, strokeColor, Xiaolin_Wu);
             if (writeableBitmap != null)
             {
                 tmp.Draw(writeableBitmap);
@@ -1035,7 +1035,7 @@ namespace Rasterization2
                 Polygons polygon = (Polygons)shapes[selectedShapeIndex];
                 polygon.isFilled = true;
                 polygon.fillColor = currentColor;
-                fill(polygon, currentColor, true);
+                fill(polygon.vertives, currentColor, true);
             }
         }
 
@@ -1157,12 +1157,12 @@ namespace Rasterization2
             }
         }
 
-        private List<Point> fill(Polygons polygons, Color color, bool draw)
+        private List<Point> fill(List<Point> points, Color color, bool draw) //points must be list of verticts
         {
             List<Point> pointsReturn = new List<Point>();
             int k = 0;
             
-            List<Point> points = polygons.vertives;
+            
             List<int> indecesSortedByY = new List<int>();
             for (int l = 0; l < points.Count; l++)
             {
@@ -1178,7 +1178,7 @@ namespace Rasterization2
             ActiveEdgeTable AET = new ActiveEdgeTable();
             while (y < ymax)
             {
-                while (k < points.Count && points[indecesSortedByY[k]].Y == y) 
+                while (k < points.Count && (int)points[indecesSortedByY[k]].Y == y) 
                 {
                     int idx = i - 1 >= 0 ? i - 1 : indecesSortedByY.Count - 1;
                     if (points[idx].Y >= points[i].Y)
@@ -1354,8 +1354,7 @@ namespace Rasterization2
                     polygon.vertives.Add(p);
                     shapes[index - 1] = polygon;
 
-                    List<Point> points = polygon.GetPoints();
-                    foreach (Point point in points)
+                    foreach (Point point in polygon.GetPoints())
                     {
                         this.points.TryAdd(point, index - 1);
                     }
@@ -1376,40 +1375,55 @@ namespace Rasterization2
                             drawState = DrawState.Start;
                             return;
                         }
-                        foreach (Point point in clippedPoints)
+                        foreach(KeyValuePair<Point, int> keyValuePair in this.points)
                         {
-                            this.points.TryAdd(point, selectedShapeIndex);
+                            if(keyValuePair.Value == index - 1)
+                            {
+                                this.points.Remove(keyValuePair.Key);
+                                if (keyValuePair.Key.X < 0 || keyValuePair.Key.X >= bitmap.PixelWidth || keyValuePair.Key.Y < 0 || keyValuePair.Key.Y >= bitmap.PixelHeight)
+                                {
+                                    continue;
+                                }
+                                bitmap.WritePixels(new Int32Rect((int)keyValuePair.Key.X, (int)keyValuePair.Key.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                            }
                         }
+                        foreach (KeyValuePair<Point, int> keyValuePair in this.points)
+                        {
+                            if (keyValuePair.Value == selectedShapeIndex)
+                            {
+                                this.points.Remove(keyValuePair.Key);
+                                if (keyValuePair.Key.X < 0 || keyValuePair.Key.X >= bitmap.PixelWidth || keyValuePair.Key.Y < 0 || keyValuePair.Key.Y >= bitmap.PixelHeight)
+                                {
+                                    continue;
+                                }
+                                bitmap.WritePixels(new Int32Rect((int)keyValuePair.Key.X, (int)keyValuePair.Key.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                            }
+                        }
+
                         Polygons clippedPolygon = new Polygons(clippedPoints.First(), clippedPoints, ToBeClippedpolygons.strokeThickness, ToBeClippedpolygons.strokeColor, ToBeClippedpolygons.Xiaolin_Wu)
                         {
                             isFilled = ToBeClippedpolygons.isFilled,
                             fillColor = ToBeClippedpolygons.fillColor
                         };
-                        foreach (Point point in ToBeClippedpolygons.GetPoints())
+                        foreach (Point point in clippedPolygon.GetPoints())
                         {
-                            this.points.Remove(point);
-                            if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
-                            {
-                                continue;
-                            }
-                            bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                            this.points.TryAdd(point, selectedShapeIndex);
                         }
+                        if (ToBeClippedpolygons.isFilled)
+                        {
+                            fill(ToBeClippedpolygons.vertives, Color.FromArgb(255, 255, 255, 255), true);
+                        }
+                        clippedPolygon.Draw(bitmap);
                         if (clippedPolygon.isFilled)
                         {
-                            foreach (Point point in fill(polygon, polygon.fillColor, false))
-                            {
-                                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
-                                {
-                                    continue;
-                                }
-                                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
-                            }
-                            fill(clippedPolygon, clippedPolygon.fillColor, true);
+                            fill(clippedPolygon.vertives, clippedPolygon.fillColor, true);
                         }
+                        //polygon.fillColor = Color.White;
                         //polygon.Draw(bitmap);
-                        clippedPolygon.Draw(bitmap);
-                        shapes[selectedShapeIndex] = clippedPolygon;
 
+                        shapes.Remove(index - 1);
+                        shapes[selectedShapeIndex] = clippedPolygon;
+                        drawState = DrawState.Start;
                     }
                 }
                 else if (drawState == DrawState.End)
@@ -1432,14 +1446,18 @@ namespace Rasterization2
                             Shape shape = shapes[shapeIndex];
                             shapes.Remove(shapeIndex);
                             List<Point> points = shape.GetPoints();
-                            foreach (Point point in points)
+
+                            foreach(KeyValuePair<Point, int> keyValuePair in this.points)
                             {
-                                this.points.Remove(point);
-                                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                if(keyValuePair.Value == shapeIndex)
                                 {
-                                    continue;
+                                    this.points.Remove(keyValuePair.Key);
+                                    if (keyValuePair.Key.X < 0 || keyValuePair.Key.X >= bitmap.PixelWidth || keyValuePair.Key.Y < 0 || keyValuePair.Key.Y >= bitmap.PixelHeight)
+                                    {
+                                        continue;
+                                    }
+                                    bitmap.WritePixels(new Int32Rect((int)keyValuePair.Key.X, (int)keyValuePair.Key.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
                                 }
-                                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
                             }
                             this.points.Remove(point1);
                             foreach (Shape s in shapes.Values)
@@ -1464,10 +1482,18 @@ namespace Rasterization2
                                 selectedShapeIndex = this.points[point1];
                                 editState = EditState.Moving;
                                 List<Point> points = shapes[selectedShapeIndex].GetPoints();
-                                foreach (Point point in points)
+                                foreach (KeyValuePair<Point, int> keyValuePair in this.points)
                                 {
-                                    this.points.Remove(point);
-                                    if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                    if (keyValuePair.Value == selectedShapeIndex)
+                                    {
+                                        this.points.Remove(keyValuePair.Key);
+
+                                        
+                                    }
+                                }
+                                foreach(Point point in points)
+                                {
+                                    if ((int)point.X < 0 || (int)point.X >= bitmap.PixelWidth || (int)point.Y < 0 || (int)point.Y >= bitmap.PixelHeight)
                                     {
                                         continue;
                                     }
@@ -1487,6 +1513,7 @@ namespace Rasterization2
                                         isFilled = polygon.isFilled,
                                         fillColor = polygon.fillColor
                                     };
+                                    
                                 }
                                 break;
                             }
@@ -1629,6 +1656,24 @@ namespace Rasterization2
                     {
                         s.Draw(bitmap);
                     }
+                    if(shape is Polygons & ((Polygons)shape).isFilled)
+                    {
+                        if (selectedShapeOldFilled != null)
+                        {
+                            Polygons polygon = (Polygons)selectedShapeOldFilled;
+                            foreach (Point point in fill(polygon.vertives, polygon.fillColor, true))
+                            {
+                                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                {
+                                    continue;
+                                }
+                                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                            }
+                            selectedShapeOldFilled = null;
+                        }
+                        fill(((Polygons)shape).vertives, ((Polygons)shape).fillColor, true);
+                        selectedShapeOldFilled = null;
+                    }
                     selectedShapeIndex = -1;
                 }
             }
@@ -1668,7 +1713,7 @@ namespace Rasterization2
                     if (selectedShapeOldFilled != null)
                     {
                         Polygons polygon = (Polygons)selectedShapeOldFilled;
-                        foreach (Point point in fill(polygon, polygon.fillColor, false))
+                        foreach (Point point in fill(polygon.vertives, polygon.fillColor, true))
                         {
                             if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
                             {
@@ -1688,7 +1733,7 @@ namespace Rasterization2
                             Polygons polygon = (Polygons)s;
                             if (polygon.isFilled)
                             {
-                                fill(polygon, polygon.fillColor, true);
+                                fill(polygon.vertives, polygon.fillColor, true);
                             }
                         }
                     }
@@ -1711,6 +1756,8 @@ namespace Rasterization2
             if (selectedShapeIndex != -1 && e.LeftButton == MouseButtonState.Pressed && editorialMode == EditorialMode.Edit)
             {
                 Point currentMousePosition = e.GetPosition(imageControl);
+                if (!shapes.ContainsKey(selectedShapeIndex))
+                    return;
                 Shape selectedShape = shapes[selectedShapeIndex];
                 
                 if (selectedShape is Line)
