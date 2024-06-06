@@ -26,6 +26,7 @@ using System.Security.AccessControl;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text.RegularExpressions;
+using System.Globalization;
 
 namespace Rasterization2
 {
@@ -2090,9 +2091,9 @@ namespace Rasterization2
             File.WriteAllText(fileName, svgShapes);
         }
         private static readonly string  lineRegex = @"<line x1=""[^""]*"" y1=""[^""]*"" x2=""[^""]*"" y2=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
-        private static readonly string circleRegex = @"<circle cx=""[^""]*"" cy=""[^""]*"" r=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
-        private static string polygonRegex = @"<polygon points=""((\d+,\d+\s?)+)"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""(\d+)"" patternPath=""([^""]+)"" stroke=""#([0-9A-Fa-f]{6})"" stroke-width=""(\d+)"" Xiaolin_Wu=""(\d+)""/>";
-        private static readonly string rectangleRegex = @"<rect x=""(\d+)"" y=""(\d+)"" width=""(\d+)"" height=""(\d+)"" stroke=""#([0-9A-Fa-f]{6})"" stroke-width=""(\d+)"" Xiaolin_Wu=""(\d+)""/>";
+        private static readonly string circleRegex = @"<circle x=""[^""]*"" y=""[^""]*"" r=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
+        private static string polygonRegex = @"<polygon points=""((\d+,\d+\s?)+)"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""(\d+)"" patternPath=""([^""]+)"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
+        private static readonly string rectangleRegex = @"<rect x=""[^""]*"" y=""[^""]*"" width=""[^""]*"" height=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
 
         public void LoadFromFile(string fileName)
         {
@@ -2150,12 +2151,13 @@ namespace Rasterization2
                 match = Regex.Match(line, circleRegex);
                 if (match.Success)
                 {
-                    int cx = int.Parse(match.Groups[1].Value);
-                    int cy = int.Parse(match.Groups[2].Value);
-                    int r = int.Parse(match.Groups[3].Value);
-                    Color color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[4].Value);
-                    int strokeThickness = int.Parse(match.Groups[5].Value);
-                    Circle c = new Circle(new Point(cx, cy), r, strokeThickness, color, XiaolinWuFlag);
+                    var stringArray = match.ToString().Split('"').Where((item, index) => index % 2 != 0).ToArray();
+                    int cx = int.Parse(stringArray[0]);
+                    int cy = int.Parse(stringArray[1]);
+                    int r = (int)Double.Parse(stringArray[2]);
+                    Color color = Color.FromName(stringArray[3]);
+                    int strokeThickness = int.Parse(stringArray[4]);
+                    Circle c = new Circle(new Point(cx, cy), r, strokeThickness, color, bool.Parse(stringArray[5]));
                     shapes.Add(index, c);
                     foreach (Point point in c.GetPoints())
                     {
