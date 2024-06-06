@@ -22,6 +22,7 @@ using System.Windows.Ink;
 using System.Data;
 using Xceed.Wpf.AvalonDock.Themes;
 using Microsoft.Win32;
+using System.Security.AccessControl;
 
 namespace Rasterization2
 {
@@ -1047,9 +1048,26 @@ namespace Rasterization2
                 Polygons polygon = (Polygons)shapes[selectedShapeIndex];
                 polygon.isFilled = true;
                 polygon.fillColor = currentColor;
+                polygon.isPattern = false;
+                polygon.patternPath = "";
                 fill(polygon.vertives, currentColor, true);
             }
         }
+        private void buttonFillWithPatern_Click(object sender, RoutedEventArgs e)
+        {
+            if (selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
+            {
+                Polygons polygon = (Polygons)shapes[selectedShapeIndex];
+                if (polygon.isFilled)
+                    fill(polygon.vertives, Color.White, true);
+                polygon.isFilled = false;
+                polygon.fillColor = new Color();
+                polygon.isPattern = true;
+                polygon.patternPath = patternPath;
+                fillwithpattern(polygon.vertives);
+            }
+        }
+        
 
         private void buttonClip_Click (object sender, RoutedEventArgs e)
         {
@@ -1088,15 +1106,10 @@ namespace Rasterization2
                 if(!String.Equals(imageDirectory, exeDirectory.TrimEnd('\\')))
                 {
                     MessageBox.Show("Cannot load image from the different directory as the executable file.");
+                    return;
                 }
                 String imagePath = openFileDialog.FileName;
-                WriteableBitmap writeableBitmap = LoadWritableBitmapImage(imagePath);
-
-                int targetWidth = 200;  //Patern Width
-                int targetHeight = 200; //Patern Height
-
-                WriteableBitmap resizedBitmap = RescaleImage(writeableBitmap, targetWidth, targetHeight);
-                bitmapPattern = resizedBitmap;
+                bitmapPattern = LoadWritableBitmapImage(imagePath);
                 int lastBackslashIndex = openFileDialog.FileName.LastIndexOf('\\');
                 string extractedSubstring = openFileDialog.FileName.Substring(lastBackslashIndex + 1);
                 patternPath = extractedSubstring;
@@ -1110,10 +1123,14 @@ namespace Rasterization2
             bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.EndInit();
-            return new WriteableBitmap(bitmap);
+            int targetWidth = 200;  //Patern Width
+            int targetHeight = 200; //Patern Height
+
+            WriteableBitmap resizedBitmap = RescaleImage(bitmap, targetWidth, targetHeight);
+            return resizedBitmap;
         }
 
-        private WriteableBitmap RescaleImage(WriteableBitmap original, int targetWidth, int targetHeight)
+        private WriteableBitmap RescaleImage(BitmapImage original, int targetWidth, int targetHeight)
         {
             TransformedBitmap transformedBitmap = new TransformedBitmap(
                 original,
@@ -1280,6 +1297,59 @@ namespace Rasterization2
             }
             return pointsReturn;
         }
+        private void fillwithpattern(List<Point> points, String path = "") //points must be list of verticts
+        {
+            if (points == null || points.Count < 3)
+            {
+                throw new ArgumentException("Invalid polygon vertices");
+            }
+
+            // Get the bounding box of the polygon
+            int minX = int.MaxValue, maxX = int.MinValue;
+            int minY = int.MaxValue, maxY = int.MinValue;
+            foreach (var vertex in points)
+            {
+                if (vertex.X < minX) minX = (int)vertex.X;
+                if (vertex.X > maxX) maxX = (int)vertex.X;
+                if (vertex.Y < minY) minY = (int)vertex.Y;
+                if (vertex.Y > maxY) maxY = (int)vertex.Y;
+            }
+            List<Point> pointsToFill = fill(points, Color.White, true);
+
+            WriteableBitmap patternBoundingBox = new WriteableBitmap(maxX - minX, maxY - minY, 96, 96, PixelFormats.Bgra32, null);
+
+            //fill the bounding box with the pattern
+            string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            if (path == "" && bitmapPattern == null)
+            {
+                MessageBox.Show("There is no pattern to load");
+                return;
+            }
+            WriteableBitmap pattern = path == "" ? bitmapPattern : LoadWritableBitmapImage(String.Concat(exeDirectory, path));
+            for (int y = minY; y < maxY; y++)
+            {
+                for (int x = minX; x < maxX; x++)
+                    {
+                    int xPattern = x % pattern.PixelWidth;
+                    int yPattern = y % pattern.PixelHeight;
+                    byte[] pixel = new byte[4];
+                    pattern.CopyPixels(new Int32Rect(xPattern, yPattern, 1, 1), pixel, 4, 0);
+                    Color color = Color.FromArgb(pixel[3], pixel[2], pixel[1], pixel[0]);
+                    putPixel(patternBoundingBox, x - minX, y - minY, color);
+                }
+            }
+            for (int i = 0; i < pointsToFill.Count; i++)
+            {
+                Point p1 = pointsToFill[i];
+                int pixelSize = 4;
+                byte[] readPixel = new byte[pixelSize];
+
+                patternBoundingBox.CopyPixels(new Int32Rect((int)(p1.X - minX), (int)(p1.Y - minY), 1, 1), readPixel, pixelSize, 0);
+                Color color = Color.FromArgb(readPixel[3], readPixel[2], readPixel[1], readPixel[0]);
+                putPixel(bitmap, (int)(p1.X), (int)(p1.Y), color);
+
+            }
+        }
         private void imageControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (drawMode == DrawMode.Line)
@@ -1356,6 +1426,10 @@ namespace Rasterization2
                 else if (drawState == DrawState.Drawing)
                 {
                     Point p = e.GetPosition(imageControl);
+                    if(!shapes.ContainsKey(index - 1))
+                    {
+                        return;
+                    }
                     Polygons polygon = (Polygons)shapes[index - 1];
                     polygon.vertives.Add(p);
                     shapes[index - 1] = polygon;
@@ -1477,13 +1551,16 @@ namespace Rasterization2
                         Polygons clippedPolygon = new Polygons(clippedPoints.First(), clippedPoints, ToBeClippedpolygons.strokeThickness, ToBeClippedpolygons.strokeColor, ToBeClippedpolygons.Xiaolin_Wu)
                         {
                             isFilled = ToBeClippedpolygons.isFilled,
-                            fillColor = ToBeClippedpolygons.fillColor
+                            fillColor = ToBeClippedpolygons.fillColor,
+                            isPattern = ToBeClippedpolygons.isPattern,
+                            patternPath = ToBeClippedpolygons.patternPath
+                            
                         };
                         foreach (Point point in clippedPolygon.GetPoints())
                         {
                             this.points.TryAdd(point, selectedShapeIndex);
                         }
-                        if (ToBeClippedpolygons.isFilled)
+                        if (ToBeClippedpolygons.isFilled | ToBeClippedpolygons.isPattern)
                         {
                             fill(ToBeClippedpolygons.vertives, Color.FromArgb(255, 255, 255, 255), true);
                         }
@@ -1491,6 +1568,10 @@ namespace Rasterization2
                         if (clippedPolygon.isFilled)
                         {
                             fill(clippedPolygon.vertives, clippedPolygon.fillColor, true);
+                        }
+                        else if (clippedPolygon.isPattern)
+                        {
+                            fillwithpattern(clippedPolygon.vertives, clippedPolygon.patternPath);
                         }
                         //polygon.fillColor = Color.White;
                         //polygon.Draw(bitmap);
@@ -1579,7 +1660,7 @@ namespace Rasterization2
                                 selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
 
                                 //Moving the filling
-                                if (shapes[selectedShapeIndex] is Polygons)
+                                if (shapes[selectedShapeIndex] is Polygons & ((Polygons)shapes[selectedShapeIndex]).isFilled)
                                 {
                                     Polygons polygon = shapes[selectedShapeIndex] as Polygons;
                                     selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(), polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
@@ -1588,6 +1669,17 @@ namespace Rasterization2
                                         fillColor = polygon.fillColor
                                     };
                                     
+                                }
+                                else if (shapes[selectedShapeIndex] is Polygons & ((Polygons)shapes[selectedShapeIndex]).isPattern)
+                                {
+                                    Polygons polygon = shapes[selectedShapeIndex] as Polygons;
+                                    selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(), polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
+                                    {
+                                        isFilled = polygon.isFilled,
+                                        fillColor = polygon.fillColor,
+                                        isPattern = polygon.isPattern,
+                                        patternPath = polygon.patternPath
+                                    };
                                 }
                                 break;
                             }
@@ -1654,7 +1746,9 @@ namespace Rasterization2
                                         selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(),        polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
                                         {
                                             isFilled = polygon.isFilled,
-                                            fillColor = polygon.fillColor
+                                            fillColor = polygon.fillColor,
+                                            isPattern = polygon.isPattern,
+                                            patternPath = polygon.patternPath
                                         };
                                     }
                                     if (shape is Circle)
@@ -1748,6 +1842,24 @@ namespace Rasterization2
                         fill(((Polygons)shape).vertives, ((Polygons)shape).fillColor, true);
                         selectedShapeOldFilled = null;
                     }
+                    else if(shape is Polygons & ((Polygons)shape).isPattern)
+                    {
+                        if (selectedShapeOldFilled != null)
+                        {
+                            Polygons polygon = (Polygons)selectedShapeOldFilled;
+                            foreach (Point point in fill(polygon.vertives, polygon.fillColor, true))
+                            {
+                                if (point.X < 0 || point.X >= bitmap.PixelWidth || point.Y < 0 || point.Y >= bitmap.PixelHeight)
+                                {
+                                    continue;
+                                }
+                                bitmap.WritePixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), new byte[] { 255, 255, 255, 255 }, 4, 0);
+                            }
+                            selectedShapeOldFilled = null;
+                        }
+                        fillwithpattern(((Polygons)shape).vertives, ((Polygons)shape).patternPath);
+                        selectedShapeOldFilled = null;
+                    }
                     selectedShapeIndex = -1;
                 }
             }
@@ -1808,6 +1920,10 @@ namespace Rasterization2
                             if (polygon.isFilled)
                             {
                                 fill(polygon.vertives, polygon.fillColor, true);
+                            }
+                            else if (polygon.isPattern)
+                            {
+                                fillwithpattern(polygon.vertives, polygon.patternPath);
                             }
                         }
                     }
@@ -1933,7 +2049,6 @@ namespace Rasterization2
                 currentColor = Color.FromArgb(colorpickerStroke.SelectedColor.Value.A, colorpickerStroke.SelectedColor.Value.R, colorpickerStroke.SelectedColor.Value.G, colorpickerStroke.SelectedColor.Value.B);
               
         }
-
 
     }
 }
