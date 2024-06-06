@@ -713,7 +713,7 @@ namespace Rasterization2
             {
                 points += $"{point.X},{point.Y} ";
             }
-            return $"<polygon vertives=\"{points}\" isFill=\"{isFilled.ToString()}\" fill=\"{ColorTranslator.ToHtml(fillColor)} isPattern=\"{isPattern}\" patternPath=\"{patternPath}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" \" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
+            return $"<polygon vertives=\"{points}\" isFill=\"{isFilled.ToString()}\" fill=\"{ColorTranslator.ToHtml(fillColor)}\" isPattern=\"{isPattern}\" patternPath=\"{patternPath}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
         }
     }
     public class Rectangle : Shape
@@ -2092,8 +2092,8 @@ namespace Rasterization2
         }
         private static readonly string  lineRegex = @"<line x1=""[^""]*"" y1=""[^""]*"" x2=""[^""]*"" y2=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
         private static readonly string circleRegex = @"<circle x=""[^""]*"" y=""[^""]*"" r=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
-        private static string polygonRegex = @"<polygon points=""((\d+,\d+\s?)+)"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""(\d+)"" patternPath=""([^""]+)"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
-        private static readonly string rectangleRegex = @"<rect x=""[^""]*"" y=""[^""]*"" width=""[^""]*"" height=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
+        private static readonly string polygonRegex = @"<polygon vertives=""[^""]*"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""[^""]*"" patternPath=""([^""]*)"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
+        private static readonly string rectangleRegex = @"<rect x=""[^""]*"" y=""[^""]*"" width=""[^""]*"" height=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
 
         public void LoadFromFile(string fileName)
         {
@@ -2167,23 +2167,29 @@ namespace Rasterization2
                     c.Draw(bitmap);
                     continue;
                 }
+
                 match = Regex.Match(line, polygonRegex);
                 if (match.Success)
                 {
-                    string[] points = match.Groups[1].Value.Split(' ');
+                    var stringArray = match.ToString().Split('"').Where((item, index) => index % 2 != 0).ToArray();
+                    string[] points = stringArray[0].Split(' ');
                     List<Point> vertives = new List<Point>();
                     foreach (string point in points)
                     {
-                        string[] xy = point.Split(',');
-                        vertives.Add(new Point(int.Parse(xy[0]), int.Parse(xy[1])));
+                        string[] coordinates = point.Split(',');
+                        if (coordinates.Length != 2)
+                        {
+                            continue;
+                        }
+                        vertives.Add(new Point(int.Parse(coordinates[0]), int.Parse(coordinates[1])));
                     }
-                    bool isFilled = int.Parse(match.Groups[3].Value) == 1;
-                    Color fillColor = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[4].Value);
-                    bool isPattern = int.Parse(match.Groups[5].Value) == 1;
-                    string patternPath = match.Groups[6].Value;
-                    Color strokeColor = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[7].Value);
-                    int strokeThickness = int.Parse(match.Groups[8].Value);
-                    Polygons p = new Polygons(vertives[0], vertives, strokeThickness, strokeColor, XiaolinWuFlag)
+                    bool isFilled = bool.Parse(stringArray[1]);
+                    Color fillColor = Color.FromName(stringArray[2]);
+                    bool isPattern = bool.Parse(stringArray[3]);
+                    string patternPath = stringArray[4];
+                    Color strokeColor = Color.FromName(stringArray[5]);
+                    int strokeThickness = int.Parse(stringArray[6]);
+                    Polygons p = new Polygons(vertives[0], vertives, strokeThickness, strokeColor, bool.Parse(stringArray[7]))
                     {
                         isFilled = isFilled,
                         fillColor = fillColor,
@@ -2195,7 +2201,6 @@ namespace Rasterization2
                     {
                         this.points.TryAdd(point, index);
                     }
-                    index++;
                     p.Draw(bitmap);
                     if (isFilled)
                     {
@@ -2206,6 +2211,7 @@ namespace Rasterization2
 
                         fillwithpattern(p.vertives, patternPath);
                     }
+                    index++;
                     continue;
                 }
                 match = Regex.Match(line, rectangleRegex);
