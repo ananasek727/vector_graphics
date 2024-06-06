@@ -797,7 +797,7 @@ namespace Rasterization2
         }
         public override string ToSVG()
         {
-            return $"<rect x1=\"{start.X}\" y1=\"{start.Y}\" x1=\"{end.X}\" y1=\"{end.Y}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\"  XiaolinWu =\"{Xiaolin_Wu}\" />";
+            return $"<rect x1=\"{start.X}\" y1=\"{start.Y}\" x2=\"{end.X}\" y2=\"{end.Y}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
         }
     }
 
@@ -2093,7 +2093,7 @@ namespace Rasterization2
         private static readonly string  lineRegex = @"<line x1=""[^""]*"" y1=""[^""]*"" x2=""[^""]*"" y2=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
         private static readonly string circleRegex = @"<circle x=""[^""]*"" y=""[^""]*"" r=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
         private static readonly string polygonRegex = @"<polygon vertives=""[^""]*"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""[^""]*"" patternPath=""([^""]*)"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
-        private static readonly string rectangleRegex = @"<rect x=""[^""]*"" y=""[^""]*"" width=""[^""]*"" height=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
+        private static readonly string rectangleRegex = @"<rect x1=""[^""]*"" y1=""[^""]*"" x2=""[^""]*"" y2=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
 
         public void LoadFromFile(string fileName)
         {
@@ -2217,13 +2217,14 @@ namespace Rasterization2
                 match = Regex.Match(line, rectangleRegex);
                 if (match.Success)
                 {
-                    int x = int.Parse(match.Groups[1].Value);
-                    int y = int.Parse(match.Groups[2].Value);
-                    int width = int.Parse(match.Groups[3].Value);
-                    int height = int.Parse(match.Groups[4].Value);
-                    Color color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[5].Value);
-                    int strokeThickness = int.Parse(match.Groups[6].Value);
-                    Rectangle r = new Rectangle(new Point(x, y), new Point(x + width, y + height), strokeThickness, color, XiaolinWuFlag);
+                    var stringArray = match.ToString().Split('"').Where((item, index) => index % 2 != 0).ToArray();
+                    int x1 = int.Parse(stringArray[0]);
+                    int y1 = int.Parse(stringArray[1]);
+                    int x2 = int.Parse(stringArray[2]);
+                    int y2 = int.Parse(stringArray[3]);
+                    Color color = Color.FromName(stringArray[4]);
+                    int strokeThickness = int.Parse(stringArray[5]);
+                    Rectangle r = new Rectangle(new Point(x1, y1), new Point(x2, y2), strokeThickness, color, bool.Parse(stringArray[6]));
                     shapes.Add(index, r);
                     foreach (Point point in r.GetPoints())
                     {
