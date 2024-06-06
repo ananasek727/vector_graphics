@@ -21,6 +21,7 @@ using System.Diagnostics.Eventing.Reader;
 using System.Windows.Ink;
 using System.Data;
 using Xceed.Wpf.AvalonDock.Themes;
+using Microsoft.Win32;
 
 namespace Rasterization2
 {
@@ -601,6 +602,8 @@ namespace Rasterization2
         public List<Point> vertives;
         public bool isFilled;
         public Color fillColor;
+        public bool isPattern;
+        public String patternPath;
 
         public Polygons(Point start, List<Point> vertives, double strokeThickness, Color strokeColor, bool XiaolinWu)
         {
@@ -610,6 +613,8 @@ namespace Rasterization2
             this.strokeColor = strokeColor;
             this.Xiaolin_Wu = XiaolinWu;
             isFilled = false;
+            isPattern = false;
+            patternPath = "";
             fillColor = Color.FromArgb(255, 255, 255, 255);
         }
         public override void Draw(WriteableBitmap writeableBitmap)
@@ -832,6 +837,8 @@ namespace Rasterization2
         private bool isCirclePointAroundTheVertex;
         private Shape? selectedShapeOldFilled;
         private Rectangle clippingRectangle;
+        private WriteableBitmap? bitmapPattern;
+        private String patternPath;
 
         public void putPixel(WriteableBitmap writeableBitmap, int x, int y, Color color)
         {
@@ -868,8 +875,12 @@ namespace Rasterization2
             circlePointAroundTheVertex = new List<Point>();
             isCirclePointAroundTheVertex = false;
             buttonFill.IsEnabled = false;
+            buttonClip.IsEnabled = false;
+            buttonFillWithPatern.IsEnabled = false;
             selectedShapeOldFilled = null;
+            patternPath = "";
             clippingRectangle = new Rectangle(new Point(0, 0), new Point(0, 0), 1, Color.Black, false);
+            bitmapPattern = null;
         }
         private void window_ContentRendered(object sender, EventArgs e)
         {
@@ -1006,6 +1017,7 @@ namespace Rasterization2
             buttonDelete.IsChecked = false;
             buttonFill.IsEnabled = true;
             buttonClip.IsEnabled = true;
+            buttonFillWithPatern.IsEnabled = true;
 
             drawMode = DrawMode.None;
             drawState = DrawState.Start;
@@ -1053,6 +1065,67 @@ namespace Rasterization2
                 drawMode = DrawMode.None;
                 drawState = DrawState.Start;
             }
+        }
+
+        private void buttonLoadPattern_Click(object sender, RoutedEventArgs e)
+        {
+            uncheckedAllOtherButtons(sender);
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+            editorialMode = EditorialMode.Delete;
+            editState = EditState.Start;
+            //Load Image
+            string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                InitialDirectory = exeDirectory,
+                Filter = "Image files (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|All files (*.*)|*.*"
+            };
+            if (openFileDialog.ShowDialog() == true)
+            {
+                String imageDirectory = System.IO.Path.GetDirectoryName(openFileDialog.FileName);
+                if(!String.Equals(imageDirectory, exeDirectory.TrimEnd('\\')))
+                {
+                    MessageBox.Show("Cannot load image from the different directory as the executable file.");
+                }
+                String imagePath = openFileDialog.FileName;
+                WriteableBitmap writeableBitmap = LoadWritableBitmapImage(imagePath);
+
+                int targetWidth = 200;  //Patern Width
+                int targetHeight = 200; //Patern Height
+
+                WriteableBitmap resizedBitmap = RescaleImage(writeableBitmap, targetWidth, targetHeight);
+                bitmapPattern = resizedBitmap;
+                int lastBackslashIndex = openFileDialog.FileName.LastIndexOf('\\');
+                string extractedSubstring = openFileDialog.FileName.Substring(lastBackslashIndex + 1);
+                patternPath = extractedSubstring;
+            }
+        }
+
+        private WriteableBitmap LoadWritableBitmapImage(string filePath)
+        {
+            BitmapImage bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            return new WriteableBitmap(bitmap);
+        }
+
+        private WriteableBitmap RescaleImage(WriteableBitmap original, int targetWidth, int targetHeight)
+        {
+            TransformedBitmap transformedBitmap = new TransformedBitmap(
+                original,
+                new ScaleTransform(
+                    (double)targetWidth / original.PixelWidth,
+                    (double)targetHeight / original.PixelHeight
+                )
+            );
+
+            WriteableBitmap resizedBitmap = new WriteableBitmap(transformedBitmap);
+
+            return resizedBitmap;
         }
 
         private bool IsInside(Point p1, Point p2, Point q)
@@ -1151,6 +1224,7 @@ namespace Rasterization2
             buttonDelete.IsChecked = false;
             buttonFill.IsEnabled = false;
             buttonClip.IsEnabled = false;
+            buttonFillWithPatern.IsEnabled = false;
             if (toggleButton != null)
             {
                 toggleButton.IsChecked = true;
@@ -1859,5 +1933,7 @@ namespace Rasterization2
                 currentColor = Color.FromArgb(colorpickerStroke.SelectedColor.Value.A, colorpickerStroke.SelectedColor.Value.R, colorpickerStroke.SelectedColor.Value.G, colorpickerStroke.SelectedColor.Value.B);
               
         }
+
+
     }
 }

@@ -7,13 +7,29 @@
         xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
         mc:Ignorable="d"
         Title="MainWindow" Height="800" Width="1000" ContentRendered="window_ContentRendered" ResizeMode="NoResize">
+    
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="5*"></ColumnDefinition>
             <ColumnDefinition Width="1*"></ColumnDefinition>
         </Grid.ColumnDefinitions>
         <Grid x:Name="imageControlGrid">
-            <Image x:Name="imageControl" Stretch="Fill" MouseLeftButtonDown="imageControl_MouseLeftButtonDown" MouseLeftButtonUp="imageControl_MouseLeftButtonUp" MouseMove="imageControl_MouseMove"></Image>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="20"></RowDefinition>
+                <RowDefinition Height="1*"></RowDefinition>
+            </Grid.RowDefinitions>
+            <DockPanel Grid.Row="0" Height="20">
+                <ToolBarTray DockPanel.Dock="Top" Height="20">
+                    <ToolBar Height="20">
+                        <Button x:Name="buttonLoadPattern" Height="20" Click="buttonLoadPattern_Click" >Load pattern</Button>
+                    </ToolBar>
+                    <ToolBar Height="20">
+                        <Button x:Name="buttonSave" Height="20">Save</Button>
+                        <Button x:Name="buttonLoadWorkspace" Height="20">Load workspace</Button>
+                    </ToolBar>
+                </ToolBarTray>
+            </DockPanel>
+            <Image x:Name="imageControl" Stretch="Fill" Grid.Row="1" MouseLeftButtonDown="imageControl_MouseLeftButtonDown" MouseLeftButtonUp="imageControl_MouseLeftButtonUp" MouseMove="imageControl_MouseMove"></Image>
         </Grid>
         <Border Grid.Column="1" BorderBrush="Aqua" BorderThickness="2, 0, 0, 0">
             <Grid>
