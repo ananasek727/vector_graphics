@@ -23,6 +23,9 @@ using System.Data;
 using Xceed.Wpf.AvalonDock.Themes;
 using Microsoft.Win32;
 using System.Security.AccessControl;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text.RegularExpressions;
 
 namespace Rasterization2
 {
@@ -36,12 +39,10 @@ namespace Rasterization2
     }
 
 
-
     public abstract class Shape
     {
         public double strokeThickness;
         public Color strokeColor;
-        public bool isSelected;
         public bool Xiaolin_Wu;
 
         public abstract void Draw(WriteableBitmap writeableBitmap);
@@ -66,6 +67,8 @@ namespace Rasterization2
         {
             return Math.Max(min, Math.Min(max, value));
         }
+
+        public abstract string ToSVG();
     }
     public class Line : Shape
     {
@@ -381,6 +384,11 @@ namespace Rasterization2
             start = new Point(start.X + vector.X, start.Y + vector.Y);
             end = new Point(end.X + vector.X, end.Y + vector.Y);
         }
+
+        public override string ToSVG()
+        {
+            return $"<line x1=\"{start.X}\" y1=\"{start.Y}\" x2=\"{end.X}\" y2=\"{end.Y}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
+        }
     }
     public class Circle : Shape
     {
@@ -596,6 +604,10 @@ namespace Rasterization2
         {
             center = new Point(center.X + vector.X, center.Y + vector.Y);
         }
+        public override string ToSVG()
+        {
+            return $"<circle x=\"{center.X}\" y=\"{center.Y}\" r=\"{radius}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
+        }
     }
     public class Polygons : Shape
     {
@@ -692,6 +704,16 @@ namespace Rasterization2
                 vertives[i] = new Point(vertives[i].X + vector.X, vertives[i].Y + vector.Y);
             }
         }
+
+        public override string ToSVG()
+        {
+            string points = "";
+            foreach (Point point in vertives)
+            {
+                points += $"{point.X},{point.Y} ";
+            }
+            return $"<polygon vertives=\"{points}\" isFill=\"{isFilled.ToString()}\" fill=\"{ColorTranslator.ToHtml(fillColor)} isPattern=\"{isPattern}\" patternPath=\"{patternPath}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\" \" Xiaolin_Wu=\"{Xiaolin_Wu}\" />";
+        }
     }
     public class Rectangle : Shape
     {
@@ -771,6 +793,10 @@ namespace Rasterization2
                 end,
                 new Point(start.X, end.Y)
             };
+        }
+        public override string ToSVG()
+        {
+            return $"<rect x1=\"{start.X}\" y1=\"{start.Y}\" x1=\"{end.X}\" y1=\"{end.Y}\" stroke=\"{ColorTranslator.ToHtml(strokeColor)}\" stroke-width=\"{strokeThickness}\"  XiaolinWu =\"{Xiaolin_Wu}\" />";
         }
     }
 
@@ -857,7 +883,6 @@ namespace Rasterization2
             }
         }
 
-
         public MainWindow()
         {
             InitializeComponent();
@@ -909,14 +934,6 @@ namespace Rasterization2
                 pixels[i + 3] = color[3]; // Alpha component
             }
             bitmap.WritePixels(new Int32Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight), pixels, stride, 0, 0);
-/*            int stride = bitmap.PixelWidth * (bitmap.Format.BitsPerPixel / 8);
-            for (int i = 0; i < bitmap.PixelHeight; i++)
-            {
-                for (int j = 0; j < bitmap.PixelWidth; j++)
-                {
-                    bitmap.WritePixels(new Int32Rect(j, i, 1, 1), color, 4, 0);
-                }
-            }*/
         }
 
         private static List<Point> clickCircle(Point center, double radius)
@@ -947,6 +964,7 @@ namespace Rasterization2
                 drawState = DrawState.Start;
             }
         }
+
         private void buttonCircle_Click(object sender, RoutedEventArgs e)
         {
             if (drawMode != DrawMode.Circle)
@@ -960,6 +978,7 @@ namespace Rasterization2
                 drawState = DrawState.Start;
             }
         }
+
         private void buttonPolygon_Click(object sender, RoutedEventArgs e)
         {
             if (drawMode != DrawMode.Polygon)
@@ -973,6 +992,7 @@ namespace Rasterization2
                 drawState = DrawState.Start;
             }
         }
+
         private void buttonRectangle_Click(object sender, RoutedEventArgs e)
         {
             if (drawMode != DrawMode.Rectangle)
@@ -1009,6 +1029,7 @@ namespace Rasterization2
             editorialMode = EditorialMode.Delete;
             editState = EditState.Start;
         }
+
         private void buttonEdit_Checked(object sender, RoutedEventArgs e)
         {
             buttonLine.IsChecked = false;
@@ -1053,6 +1074,7 @@ namespace Rasterization2
                 fill(polygon.vertives, currentColor, true);
             }
         }
+
         private void buttonFillWithPatern_Click(object sender, RoutedEventArgs e)
         {
             if (selectedShapeIndex != -1 && editorialMode == EditorialMode.Edit && shapes[selectedShapeIndex] is Polygons)
@@ -1067,7 +1089,6 @@ namespace Rasterization2
                 fillwithpattern(polygon.vertives);
             }
         }
-        
 
         private void buttonClip_Click (object sender, RoutedEventArgs e)
         {
@@ -1297,6 +1318,7 @@ namespace Rasterization2
             }
             return pointsReturn;
         }
+
         private void fillwithpattern(List<Point> points, String path = "") //points must be list of verticts
         {
             if (points == null || points.Count < 3)
@@ -1320,7 +1342,7 @@ namespace Rasterization2
 
             //fill the bounding box with the pattern
             string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            if (path == "" && bitmapPattern == null)
+            if ((path == "" && bitmapPattern == null) |(path!="" & !File.Exists(String.Concat(exeDirectory, path))))
             {
                 MessageBox.Show("There is no pattern to load");
                 return;
@@ -1350,6 +1372,7 @@ namespace Rasterization2
 
             }
         }
+
         private void imageControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (drawMode == DrawMode.Line)
@@ -1660,7 +1683,7 @@ namespace Rasterization2
                                 selectedShapeOldPoints = shapes[selectedShapeIndex].GetPoints();
 
                                 //Moving the filling
-                                if (shapes[selectedShapeIndex] is Polygons & ((Polygons)shapes[selectedShapeIndex]).isFilled)
+                                if (shapes[selectedShapeIndex] is Polygons && ((Polygons)shapes[selectedShapeIndex]).isFilled)
                                 {
                                     Polygons polygon = shapes[selectedShapeIndex] as Polygons;
                                     selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(), polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
@@ -1670,7 +1693,7 @@ namespace Rasterization2
                                     };
                                     
                                 }
-                                else if (shapes[selectedShapeIndex] is Polygons & ((Polygons)shapes[selectedShapeIndex]).isPattern)
+                                else if (shapes[selectedShapeIndex] is Polygons && ((Polygons)shapes[selectedShapeIndex]).isPattern)
                                 {
                                     Polygons polygon = shapes[selectedShapeIndex] as Polygons;
                                     selectedShapeOldFilled = new Polygons(polygon.start, polygon.vertives.Select(point => new Point(point.X, point.Y)).ToList(), polygon.strokeThickness, polygon.strokeColor, polygon.Xiaolin_Wu)
@@ -1791,7 +1814,6 @@ namespace Rasterization2
             }
             
         }
-        
 
         private void imageControl_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
@@ -1824,7 +1846,7 @@ namespace Rasterization2
                     {
                         s.Draw(bitmap);
                     }
-                    if(shape is Polygons & ((Polygons)shape).isFilled)
+                    if(shape is Polygons && ((Polygons)shape).isFilled)
                     {
                         if (selectedShapeOldFilled != null)
                         {
@@ -1842,7 +1864,7 @@ namespace Rasterization2
                         fill(((Polygons)shape).vertives, ((Polygons)shape).fillColor, true);
                         selectedShapeOldFilled = null;
                     }
-                    else if(shape is Polygons & ((Polygons)shape).isPattern)
+                    else if(shape is Polygons && ((Polygons)shape).isPattern)
                     {
                         if (selectedShapeOldFilled != null)
                         {
@@ -1938,6 +1960,8 @@ namespace Rasterization2
             {
                 Point currentMousePosition = e.GetPosition(imageControl);
                 Vector displacement = currentMousePosition - lastMousePosition;
+                if (!shapes.ContainsKey(selectedShapeIndex))
+                    return;
                 Shape selectedShape = shapes[selectedShapeIndex];
                 selectedShape.Move(displacement);
                 lastMousePosition = currentMousePosition;
@@ -2038,6 +2062,7 @@ namespace Rasterization2
         {
             XiaolinWuFlag = false;
         }
+
         private void sliderThickness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             thickness = (int)e.NewValue;
@@ -2050,5 +2075,179 @@ namespace Rasterization2
               
         }
 
+        public void SaveToFile(string fileName)
+        {
+            if (shapes.Count == 0 | fileName == "")
+            {
+                return;
+            }
+            string svgShapes = "";
+            foreach (Shape shape in shapes.Values)
+            {
+                svgShapes += shape.ToSVG();
+                svgShapes += "\n";
+            }
+            File.WriteAllText(fileName, svgShapes);
+        }
+        private static readonly string  lineRegex = @"<line x1=""[^""]*"" y1=""[^""]*"" x2=""[^""]*"" y2=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*"" />";
+        private static readonly string circleRegex = @"<circle cx=""[^""]*"" cy=""[^""]*"" r=""[^""]*"" stroke=""[^""]*"" stroke-width=""[^""]*"" Xiaolin_Wu=""[^""]*""/>";
+        private static string polygonRegex = @"<polygon points=""((\d+,\d+\s?)+)"" isFill=""[^""]*"" fill=""[^""]*"" isPattern=""(\d+)"" patternPath=""([^""]+)"" stroke=""#([0-9A-Fa-f]{6})"" stroke-width=""(\d+)"" Xiaolin_Wu=""(\d+)""/>";
+        private static readonly string rectangleRegex = @"<rect x=""(\d+)"" y=""(\d+)"" width=""(\d+)"" height=""(\d+)"" stroke=""#([0-9A-Fa-f]{6})"" stroke-width=""(\d+)"" Xiaolin_Wu=""(\d+)""/>";
+
+        public void LoadFromFile(string fileName)
+        {
+            //reset evrything
+            if (fileName == "")
+            {
+                return;
+            }
+            drawMode = DrawMode.None;
+            drawState = DrawState.Start;
+            shapes = new Dictionary<int, Shape>();
+            points = new Dictionary<Point, int>();
+            currentColor = Color.Black;
+            XiaolinWuFlag = false;
+            thickness = 1;
+            editorialMode = EditorialMode.None;
+            editState = EditState.Start;
+            index = 0;
+            selectedShapeIndex = -1;
+            selectedShapeOldPoints = new List<Point>();
+            circlePointAroundTheVertex = new List<Point>();
+            isCirclePointAroundTheVertex = false;
+            buttonFill.IsEnabled = false;
+            buttonClip.IsEnabled = false;
+            buttonFillWithPatern.IsEnabled = false;
+            selectedShapeOldFilled = null;
+            patternPath = "";
+            clippingRectangle = new Rectangle(new Point(0, 0), new Point(0, 0), 1, Color.Black, false);
+            bitmapPattern = null;
+            paintBackground(bitmap, new byte[] { 255, 255, 255, 255});
+
+            string[] lines = File.ReadAllLines(fileName);
+            foreach (string line in lines)
+            {
+                Match match = Regex.Match(line, lineRegex);
+                if (match.Success)
+                {
+                    var stringArray = match.ToString().Split('"').Where((item, index) => index % 2 != 0).ToArray();
+                    int x1 = int.Parse(stringArray[0]);
+                    int y1 = int.Parse(stringArray[1]);
+                    int x2 = int.Parse(stringArray[2]);
+                    int y2 = int.Parse(stringArray[3]);
+                    Color color = Color.FromName(stringArray[4]);
+                    int strokeThickness = int.Parse(stringArray[5]);
+                    Line l = new Line(new Point(x1, y1), new Point(x2, y2), strokeThickness, color, bool.Parse(stringArray[6]));
+                    shapes.Add(index, l);
+                    foreach(Point point in l.GetPoints())
+                    {
+                        points.TryAdd(point, index);
+                    }
+                    index++;
+                    l.Draw(bitmap);
+                    continue;
+                }
+                match = Regex.Match(line, circleRegex);
+                if (match.Success)
+                {
+                    int cx = int.Parse(match.Groups[1].Value);
+                    int cy = int.Parse(match.Groups[2].Value);
+                    int r = int.Parse(match.Groups[3].Value);
+                    Color color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[4].Value);
+                    int strokeThickness = int.Parse(match.Groups[5].Value);
+                    Circle c = new Circle(new Point(cx, cy), r, strokeThickness, color, XiaolinWuFlag);
+                    shapes.Add(index, c);
+                    foreach (Point point in c.GetPoints())
+                    {
+                        points.TryAdd(point, index);
+                    }
+                    index++;
+                    c.Draw(bitmap);
+                    continue;
+                }
+                match = Regex.Match(line, polygonRegex);
+                if (match.Success)
+                {
+                    string[] points = match.Groups[1].Value.Split(' ');
+                    List<Point> vertives = new List<Point>();
+                    foreach (string point in points)
+                    {
+                        string[] xy = point.Split(',');
+                        vertives.Add(new Point(int.Parse(xy[0]), int.Parse(xy[1])));
+                    }
+                    bool isFilled = int.Parse(match.Groups[3].Value) == 1;
+                    Color fillColor = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[4].Value);
+                    bool isPattern = int.Parse(match.Groups[5].Value) == 1;
+                    string patternPath = match.Groups[6].Value;
+                    Color strokeColor = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[7].Value);
+                    int strokeThickness = int.Parse(match.Groups[8].Value);
+                    Polygons p = new Polygons(vertives[0], vertives, strokeThickness, strokeColor, XiaolinWuFlag)
+                    {
+                        isFilled = isFilled,
+                        fillColor = fillColor,
+                        isPattern = isPattern,
+                        patternPath = patternPath
+                    };
+                    shapes.Add(index, p);
+                    foreach (Point point in p.GetPoints())
+                    {
+                        this.points.TryAdd(point, index);
+                    }
+                    index++;
+                    p.Draw(bitmap);
+                    if (isFilled)
+                    {
+                        fill(p.vertives, fillColor, true);
+                    }
+                    else if (isPattern)
+                    {
+
+                        fillwithpattern(p.vertives, patternPath);
+                    }
+                    continue;
+                }
+                match = Regex.Match(line, rectangleRegex);
+                if (match.Success)
+                {
+                    int x = int.Parse(match.Groups[1].Value);
+                    int y = int.Parse(match.Groups[2].Value);
+                    int width = int.Parse(match.Groups[3].Value);
+                    int height = int.Parse(match.Groups[4].Value);
+                    Color color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + match.Groups[5].Value);
+                    int strokeThickness = int.Parse(match.Groups[6].Value);
+                    Rectangle r = new Rectangle(new Point(x, y), new Point(x + width, y + height), strokeThickness, color, XiaolinWuFlag);
+                    shapes.Add(index, r);
+                    foreach (Point point in r.GetPoints())
+                    {
+                        points.TryAdd(point, index);
+                    }
+                    index++;
+                    r.Draw(bitmap);
+                    continue;
+                }
+            }
+        }
+
+        private void buttonSave_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Filter = "SVG files (*.svg)|*.svg";
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                SaveToFile(saveFileDialog.FileName);
+            }
+        }
+
+        private void buttonLoadWorkspace_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                Filter = "SVG files (*.svg)|*.svg"
+            };
+            if (openFileDialog.ShowDialog() == true)
+            {
+                LoadFromFile(openFileDialog.FileName);
+            }
+        }
     }
 }

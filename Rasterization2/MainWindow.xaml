@@ -24,8 +24,8 @@
                         <Button x:Name="buttonLoadPattern" Height="20" Click="buttonLoadPattern_Click" >Load pattern</Button>
                     </ToolBar>
                     <ToolBar Height="20">
-                        <Button x:Name="buttonSave" Height="20">Save</Button>
-                        <Button x:Name="buttonLoadWorkspace" Height="20">Load workspace</Button>
+                        <Button x:Name="buttonSave" Height="20" Click="buttonSave_Click" >Save</Button>
+                        <Button x:Name="buttonLoadWorkspace" Height="20" Click="buttonLoadWorkspace_Click">Load workspace</Button>
                     </ToolBar>
                 </ToolBarTray>
             </DockPanel>
